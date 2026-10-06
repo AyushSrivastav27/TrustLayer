@@ -21,7 +21,7 @@ Please adhere strictly to the file ownership rules and branch directives in ROLE
 
 | Member | Role | Assigned Branch | Owned Files (Can Create / Edit) | Status |
 |---|---|---|---|---|
-| **Member 1** | **Team Lead & Core Integrator** | `main` / `feature/core-engine` / `feature/ast-utils` / `feature/cli` | `src/engine/*`, `src/cli.js`, `src/types/*`, `src/utils/*`, `tests/engine/*`, `tests/utils/*`, `demo/server.js`, `demo/db/*`, configs | 🟢 Completed Core Pipeline |
+| **Member 1** | **Team Lead & Core Integrator** | `main` / `feature/core-engine` / `feature/ast-utils` / `feature/cli` | `src/engine/*`, `src/cli.js`, `src/types/*`, `src/utils/*`, `tests/engine/*`, `tests/utils/*`, `demo/server.js`, `demo/db/*`, configs | 🟢 Completed (Core Pipeline, CLI, Demo Skeleton & Tests) |
 | **Member 2** | **Secrets & Cryptography Specialist** | `feature/secrets-crypto` | `src/rules/hardcoded-secrets.js`, `src/rules/weak-crypto.js`, `tests/rules/hardcoded-secrets.test.js`, `tests/rules/weak-crypto.test.js` | 🟡 In Progress |
 | **Member 3** | **Injection & Input Flaws Specialist** | `feature/injection-rules` | `src/rules/sql-injection.js`, `src/rules/missing-input-validation.js`, `tests/rules/sql-injection.test.js`, `tests/rules/missing-input-validation.test.js` | 🟡 In Progress |
 | **Member 4** | **Payment & Authentication Specialist** | `feature/auth-payment-rules` | `src/rules/payment-amount-tampering.js`, `src/rules/missing-webhook-verification.js`, `src/rules/missing-auth-middleware.js`, `tests/rules/payment-*.test.js`, `tests/rules/auth-*.test.js` | 🟡 In Progress |

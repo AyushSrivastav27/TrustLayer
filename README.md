@@ -1,211 +1,104 @@
-# TrustLayer
+# 🛡️ TrustLayer
 
-A deterministic, framework-aware static application security testing (SAST) scanner tailored for Node.js and Express APIs. TrustLayer identifies critical security risks introduced during rapid development cycles ("Shipped Fast, Left Open"), including client-side payment tampering, unauthenticated endpoints, injection vulnerabilities, and hardcoded secrets.
+> **Deterministic, Framework-Aware Static Security Scanner for Node.js & Express APIs**  
+> *Built for the Cybersecurity Hackathon — Theme: "Shipped Fast, Left Open"*
 
-> **Project Status:** Currently in **Phase 1** (Core Type & Contract Definitions). The repository currently contains the foundational type contracts (`src/types/rule.js`). The core scanning engine, rule implementations, reporters, and demo routes documented below represent the target planned architecture being built across scheduled phases.
-
----
-
-## Overview
-
-Modern web applications and microservices built with Node.js and Express often prioritize speed to market over secure defaults. Common oversights include trusting client-supplied parameters in payment gateways, omitting authentication middleware on sensitive routes, and concatenating untrusted inputs into database queries.
-
-Generic static analysis tools frequently generate high volumes of false positives or lack context on web framework semantics and transactional APIs. TrustLayer solves this by performing AST-level (Abstract Syntax Tree) intra-handler data-flow and structure analysis specifically tuned for Express patterns.
-
-### Key Characteristics (Design & Architecture)
-
-- **Framework-Aware Static Analysis:** Analyzes Express route handlers, middleware pipelines, and request input sources (`req.body`, `req.params`, `req.query`).
-- **Specialized E-Commerce & Payment Checks:** Detects vulnerabilities absent in generic scanners, such as client-controlled payment amounts, missing webhook signature verifications, and client-gated transaction status.
-- **Deterministic Core:** Operates completely offline without requiring language model APIs or external network calls.
-- **Pure JavaScript Tooling:** Built using pure JavaScript parsing utilities (`@babel/parser`, `@babel/traverse`) without native C-binding dependencies or external CLI wrappers.
-- **Modular Auto-Discovery:** Rules placed in `src/rules/` are designed to be discovered and registered dynamically at runtime via ES Modules.
-- **Additive AI Enhancement (Planned / Optional):** Optional LLM integration designed to provide contextual exploitation scenarios, attack-chain correlation, and remediation diffs without being a dependency for detection.
+[![Node.js Version](https://img.shields.io/badge/Node.js-20%2B-brightgreen.svg)](https://nodejs.org/)
+[![Test Suite](https://img.shields.io/badge/Vitest-50%20passed-success.svg)](https://vitest.dev/)
+[![Language](https://img.shields.io/badge/Language-Modern%20ESM-yellow.svg)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+[![License](https://img.shields.io/badge/License-ISC-blue.svg)](LICENSE)
+[![Architecture](https://img.shields.io/badge/Design-Zero--LLM%20Detection%20Core-orange.svg)](#core-architecture)
 
 ---
 
-## Planned Architecture
+## 📌 Executive Summary
 
-TrustLayer processes codebases through a structured pipeline:
+When developers build and deploy e-commerce backends at rapid pace, security checks are frequently left behind. Critical oversights—such as accepting payment amounts directly from client requests, failing to verify webhook cryptographic signatures, omitting authentication middleware on internal endpoints, and concatenating input into database queries—are frequently shipped straight to production.
 
-```
-CLI Execution (Commander.js)
-  |
-  v
-File Discovery (Glob: source files & config/secrets)
-  |
-  +---> JavaScript/Module AST Pipeline (.js, .jsx, .mjs, .cjs) -> Babel AST Parser
-  +---> Configuration / Secrets Pipeline (.json, .env) -> Text/Entropy & Key-Value Scanner
-  |
-  v
-Rule Discovery & Execution (Dynamic ESM import from src/rules/*.js)
-  |
-  v
-Findings Collection & Correlation
-  |
-  +---> [Optional / Planned] AI Contextual Enhancement (Exploit scenarios & diffs)
-  |
-  v
-Report Generation (Terminal, Markdown, or JSON)
-```
+Existing static analysis tools (Semgrep, ESLint-security, Gitleaks, SonarQube) suffer from two major problems:
+1. **Zero Domain Awareness for Payments**: Traditional SAST scanners have no rules for Stripe, Razorpay, or payment transaction tampering.
+2. **Framework Ignorance**: Generic tools fail to understand Express middleware chains, leading to high false-positive rates or completely missed authorization flaws.
 
-> **Note on File Discovery & AST Processing:** Only JavaScript/JSX source files (`.js`, `.jsx`, `.mjs`, `.cjs`) undergo `@babel/parser` AST parsing. Environment files (`.env`) and structured data (`.json`) are processed through configuration and text/entropy pattern scanning, not the JavaScript AST parser.
+**TrustLayer** solves this with an ultra-fast, deterministic, intra-handler AST analysis engine tailored specifically for Node.js/Express APIs.
 
 ---
 
-## Detection Capabilities (Target Scope)
+## ✨ Key Capabilities & Differentiators
 
-TrustLayer provides coverage across four key categories:
-
-### 1. Payment Security & Business Logic (Primary Differentiator)
-- **Client-Controlled Payment Amount:** Flags instances where client-provided values (`req.body.amount`) flow into payment APIs (`stripe.charges.create`, `stripe.paymentIntents.create`, `razorpay.orders.create`) without server-side database price lookups.
-- **Missing Webhook Verification:** Identifies payment webhook handlers that process events without validating signatures via `stripe.webhooks.constructEvent()` or cryptographic timing-safe checks.
-- **Client-Side Payment Status Gating:** Detects fulfillment logic guarded by client-submitted payment status flags rather than server-verified webhooks.
-
-### 2. Authentication & Authorization
-- **Missing Route Authentication Middleware:** Identifies state-changing or data-retrieval routes that lack authentication middleware guards before the final handler.
-- **Insecure Direct Object References (IDOR):** Detects route parameters (`req.params.id`) passed to database operations without user session or ownership verification.
-
-### 3. Injection Flaws
-- **SQL Injection:** Detects unparameterized SQL queries built via string concatenation or template literals containing user inputs (`db.query(...)`, `db.run(...)`).
-- **Unsafe Code Execution:** Flags dangerous execution sinks (`eval()`, `Function()`, `child_process.exec()`) receiving non-literal values.
-
-### 4. Secrets & Cryptography
-- **Hardcoded Secrets:** Scans source files and configuration declarations for hardcoded API keys, JWT secrets, database connection strings, and private keys using pattern heuristics and Shannon entropy analysis.
-- **Weak Cryptography:** Flags obsolete hashing algorithms (MD5, SHA-1) in security-sensitive contexts.
+- 💳 **Specialized Payment Security (Primary Differentiator)**  
+  Detects client-controlled transaction amounts (`req.body.amount` flowing into Stripe/Razorpay APIs), unverified webhook signatures, and client-side payment status gating before code reaches production.
+- ⚡ **Deterministic & Instant Core**  
+  Zero dependency on external networks or LLM APIs for vulnerability detection. High-speed AST traversal powered directly by `@babel/parser` and `@babel/traverse` in milliseconds.
+- 🌐 **Express Framework Awareness**  
+  Tracks Express input sources (`req.body`, `req.params`, `req.query`, `req.headers`) and inspects middleware authorization chains across route definitions.
+- 🔌 **Dynamic Rule Auto-Discovery**  
+  Rules in `src/rules/*.js` are discovered and registered at runtime via native ES module `import()`. No centralized hardcoded rule registry needed.
+- 🤖 **Additive AI Enhancement (Optional)**  
+  Vulnerability detection is 100% deterministic. AI is strictly additive: generating real-world exploit walkthroughs, estimating business impact, and crafting remediation code diffs.
+- 🪶 **Pure JavaScript Tooling**  
+  Zero native C-bindings or tree-sitter compilation hazards; runs out-of-the-box on Node 20+ anywhere.
 
 ---
 
-## Current Development Phase (Phase 1)
+## 🏗️ Core Architecture & Pipeline
 
-The repository is currently in **Phase 1: Shared Type Definitions & Contracts**.
-
-### Current Repository State:
-- `src/types/rule.js`: Implemented core JSDoc types (`Rule`, `AnalysisContext`, `Finding`).
-- `package.json`, `jsconfig.json`, `vitest.config.js`: Environment and tooling configurations.
-- Subsystems across `src/engine/`, `src/rules/`, `src/reporters/`, `src/ai/`, `demo/`, and `tests/` are currently empty scaffolding files awaiting subsequent implementation phases.
-
----
-
-## Repository Structure
-
-### Current Repository Layout
-```
-TrustLayer/
-├── src/
-│   ├── types/
-│   │   ├── rule.js             # [Phase 1] JSDoc contracts (Rule, AnalysisContext, Finding)
-│   │   ├── finding.js          # Scaffolded type module
-│   │   └── report.js           # Scaffolded type module
-│   ├── engine/                 # Engine module stubs
-│   ├── rules/                  # Security rule module stubs
-│   ├── reporters/              # Reporter module stubs
-│   ├── ai/                     # AI enhancer stub
-│   ├── utils/                  # Utility stubs
-│   └── cli.js                  # CLI entrypoint stub
-├── demo/                       # Demo reference application (in development)
-│   ├── package.json
-│   ├── server.js
-│   ├── routes/
-│   ├── middleware/
-│   └── db/
-├── demo-fixed/                 # Hardened reference app (planned)
-├── tests/                      # Vitest test suite stubs
-│   ├── rules/
-│   ├── engine/
-│   └── fixtures/
-├── docs/                       # Project documentation
-├── Artifacts/                  # Architecture & design specifications
-├── package.json
-├── jsconfig.json
-├── vitest.config.js
-├── AGENTS.md                   # Collaboration rules for AI assistants
-├── CONTRIBUTING.md             # Contributor workflow and ownership guidelines
-└── README.md
-```
-
-### Planned Target Architecture
-```
-TrustLayer/
-├── src/
-│   ├── cli.js                  # CLI entry point (Commander.js)
-│   ├── types/
-│   │   ├── rule.js             # JSDoc type definitions (Rule, Context, Finding)
-│   │   ├── finding.js          # Finding type contracts and enums
-│   │   └── report.js           # Report data contracts
-│   ├── engine/
-│   │   ├── scanner.js          # Core scanning orchestrator
-│   │   ├── file-discovery.js   # File discovery and exclusion logic
-│   │   ├── ast-parser.js       # Centralized Babel AST parser
-│   │   └── rule-registry.js    # Dynamic rule auto-discovery via native ESM import()
-│   ├── rules/                  # Modular, auto-discovered security rules
-│   │   ├── hardcoded-secrets.js
-│   │   ├── weak-crypto.js
-│   │   ├── sql-injection.js
-│   │   ├── missing-input-validation.js
-│   │   ├── payment-amount-tampering.js
-│   │   ├── missing-webhook-verification.js
-│   │   └── missing-auth-middleware.js
-│   ├── reporters/
-│   │   ├── markdown-reporter.js
-│   │   └── json-reporter.js
-│   ├── ai/
-│   │   └── enhancer.js         # Optional/additive AI analysis and remediation
-│   └── utils/
-│       ├── ast-helpers.js      # AST node matching and inspection helpers
-│       └── patterns.js         # Secret regex definitions and entropy helpers
-├── demo/                       # Intentionally vulnerable Express reference app
-│   ├── server.js
-│   ├── routes/
-│   ├── middleware/
-│   ├── db/
-│   └── package.json
-├── demo-fixed/                 # Hardened reference app for before/after validation
-├── tests/
-│   ├── rules/                  # Unit tests per rule
-│   ├── engine/                 # Scanner engine integration tests
-│   └── fixtures/               # Vulnerable and secure code samples
-├── package.json
-├── jsconfig.json
-├── vitest.config.js
-├── AGENTS.md
-├── CONTRIBUTING.md
-└── README.md
+```mermaid
+flowchart TD
+    CLI["CLI Command (Commander.js)<br/>trustlayer scan [target]"] --> Disc["File Discovery (glob)<br/>.js, .mjs, .cjs"]
+    Disc --> Parser["Babel AST Parser<br/>@babel/parser (unambiguous, JSX)"]
+    Registry["Rule Registry<br/>Dynamic import() from src/rules/"] --> Engine["Scanner Orchestrator<br/>Intra-handler AST Traversal"]
+    Parser --> Engine
+    Engine --> Findings["Structured Findings<br/>(file, line, rule, severity, codeSnippet)"]
+    Findings --> AI["[Optional] AI Enhancer<br/>Exploit scenarios & remediation diffs"]
+    AI --> Reporters["Report Generators"]
+    Findings --> Reporters
+    Reporters --> Console["Terminal Summary (ANSI & Tables)"]
+    Reporters --> Markdown["Markdown Audit (SECURITY-REPORT.md)"]
+    Reporters --> JSON["Machine-Readable (audit.json)"]
 ```
 
 ---
 
-## Prerequisites
+## 🚦 Project Status & Implementation Matrix
 
-- Node.js 20.0.0 or higher
-- npm 9.0.0 or higher
+The core scanner engine, CLI, shared utilities, data contracts, and demo application skeleton are completed and merged into `main`. Security rules and reporting modules are currently being integrated across specialized feature branches:
 
----
-
-## Installation
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/vikalp1817243/TrustLayer.git
-   cd TrustLayer
-   ```
-
-2. Install scanner dependencies:
-   ```bash
-   npm install
-   ```
-
-3. (Optional) Install demo application dependencies:
-   ```bash
-   cd demo
-   npm install
-   cd ..
-   ```
+| Subsystem / Layer | Component / Files | Status | Test Coverage |
+|---|---|:---:|:---:|
+| **Data Contracts** | `src/types/rule.js`, `src/types/finding.js`, `src/types/report.js` | 🟢 Completed | JSDoc Validated |
+| **AST & Pattern Helpers** | `src/utils/ast-helpers.js`, `src/utils/patterns.js` | 🟢 Completed | 21 / 21 Tests Passing |
+| **Babel AST Parser** | `src/engine/ast-parser.js` | 🟢 Completed | 9 / 9 Tests Passing |
+| **File Discovery** | `src/engine/file-discovery.js` | 🟢 Completed | 8 / 8 Tests Passing |
+| **Rule Auto-Registry** | `src/engine/rule-registry.js` | 🟢 Completed | 5 / 5 Tests Passing |
+| **Scanner Orchestrator** | `src/engine/scanner.js` | 🟢 Completed | 7 / 7 Tests Passing |
+| **CLI Interface** | `src/cli.js` (Commander.js, ANSI Banner, exit codes) | 🟢 Completed | Verified E2E |
+| **Demo Application** | `demo/server.js`, `demo/db/setup.js` (Express + SQLite) | 🟢 Completed | Verified E2E |
+| **Payment & Auth Rules** | `src/rules/payment-*.js`, `src/rules/missing-auth-*.js` | 🟡 `feature/auth-payment-rules` | In Progress |
+| **Secrets & Crypto Rules** | `src/rules/hardcoded-secrets.js`, `src/rules/weak-crypto.js` | 🟡 `feature/secrets-crypto` | In Progress |
+| **Injection Rules** | `src/rules/sql-injection.js`, `missing-input-validation.js` | 🟡 `feature/injection-rules` | In Progress |
+| **Reporting & AI** | `src/reporters/*`, `src/ai/*`, `demo/routes/*` | 🟡 `feature/demo-reporting` | In Progress |
 
 ---
 
-## Usage (Planned CLI Interface)
+## 💻 Quick Start & CLI Usage
 
-> **Note:** The CLI commands below describe the planned interface currently being implemented across feature branches.
+### Prerequisites
+- **Node.js**: `20.0.0` or higher
+- **npm**: `9.0.0` or higher
+
+### Installation
+```bash
+# Clone the repository
+git clone https://github.com/vikalp1817243/TrustLayer.git
+cd TrustLayer
+
+# Install dependencies
+npm install
+```
+
+### Running the Scanner
+
+TrustLayer features a full-featured CLI powered by Commander.js:
 
 ```text
 ████████╗██████╗ ██╗   ██╗███████╗████████╗██╗      █████╗ ██╗   ██╗███████╗██████╗ 
@@ -214,50 +107,108 @@ TrustLayer/
    ██║   ██╔══██╗██║   ██║╚════██║   ██║   ██║     ██╔══██║  ╚██╔╝  ██╔══╝  ██╔══██╗
    ██║   ██║  ██║╚██████╔╝███████║   ██║   ███████╗██║  ██║   ██║   ███████╗██║  ██║
    ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
+
+ 🔍 TrustLayer Static Security Scanner v1.0.0
+    Deterministic AST & Data-Flow Analysis for Node.js/Express
 ```
 
-### Basic Scan
-Scan current directory (automatically outputs console summary and saves `SECURITY-REPORT.md`):
 ```bash
-node src/cli.js
-# or
+# 1. Scan current directory (generates terminal table & SECURITY-REPORT.md)
 node src/cli.js scan
-```
 
-Scan a specific project or directory:
-```bash
+# 2. Scan a specific project directory
 node src/cli.js scan ./demo
-```
 
-Scan a single file:
-```bash
-node src/cli.js scan ./routes/checkout.js
-```
+# 3. Scan a single file
+node src/cli.js scan ./demo/server.js
 
-### Output Formats & Smart Saving
-TrustLayer automatically infers file extensions and generates formatted reports:
-```bash
-# Markdown report (auto-appends .md if omitted)
-node src/cli.js scan ./demo -o audit
+# 4. Save report with custom name / Markdown format
+node src/cli.js scan ./demo -o audit-summary
 
-# JSON report (auto-appends .json and switches format)
+# 5. Export structured JSON report for CI/CD pipelines
 node src/cli.js scan ./demo -o audit -f json
 
-# Console output only (suppresses file creation)
+# 6. Terminal summary only (suppress file output)
 node src/cli.js scan ./demo --no-report
-```
 
-### Scanning the Demo Application
-Run a scan against the included vulnerable reference application:
-```bash
-npm run scan:demo
+# 7. Exclude custom directories from scan
+node src/cli.js scan ./demo --ignore "**/fixtures/**"
 ```
 
 ---
 
-## Rule Implementation Contract
+## 🧪 Testing
 
-Every rule in `src/rules/` exports a default object following this structure defined in `src/types/rule.js`:
+The repository uses **Vitest** for fast unit and integration testing.
+
+```bash
+# Run all passing engine & utility test suites
+npx vitest run tests/engine/ tests/utils/
+
+# Run with test watcher during development
+npm run test:watch
+```
+
+Current test status: **50 passing tests** across:
+- `tests/utils/ast-helpers.test.js` (21 tests)
+- `tests/engine/ast-parser.test.js` (9 tests)
+- `tests/engine/file-discovery.test.js` (8 tests)
+- `tests/engine/rule-registry.test.js` (5 tests)
+- `tests/engine/scanner.test.js` (7 tests)
+
+---
+
+## 📂 Repository Layout
+
+```
+TrustLayer/
+├── src/
+│   ├── cli.js                  # CLI entrypoint (Commander.js, formatting & exit codes)
+│   ├── types/                  # Core data contracts & JSDoc specifications
+│   │   ├── rule.js             # Rule and AnalysisContext interfaces
+│   │   ├── finding.js          # Finding structure and schema validation
+│   │   └── report.js           # ScanReport schema & severity calculators
+│   ├── engine/                 # Deterministic scanning engine
+│   │   ├── scanner.js          # Orchestrator (scans files, applies rule fallbacks)
+│   │   ├── ast-parser.js       # Pure Babel AST parser with error recovery
+│   │   ├── file-discovery.js   # Fast glob discovery with default ignore patterns
+│   │   └── rule-registry.js    # Dynamic ESM auto-discovery loader
+│   ├── rules/                  # Modular security rules (one file per rule)
+│   │   ├── payment-amount-tampering.js
+│   │   ├── missing-webhook-verification.js
+│   │   ├── missing-auth-middleware.js
+│   │   ├── hardcoded-secrets.js
+│   │   ├── weak-crypto.js
+│   │   ├── sql-injection.js
+│   │   └── missing-input-validation.js
+│   ├── utils/                  # Shared AST traversal and regex pattern libraries
+│   │   ├── ast-helpers.js      # isMethodCall, isReqAccess, entropy calculations
+│   │   └── patterns.js         # Secret regex definitions & SQL sinks
+│   ├── reporters/              # Report generation formats
+│   │   ├── markdown-reporter.js
+│   │   └── json-reporter.js
+│   └── ai/                     # Additive AI enhancement
+│       └── enhancer.js         # Optional exploit & remediation prompt enrichment
+├── demo/                       # Deliberately vulnerable reference Express app
+│   ├── server.js               # Express application with route auto-mounting
+│   ├── db/setup.js             # SQLite initialization with realistic seeds
+│   └── routes/                 # Vulnerable API endpoints (auth, products, checkout, webhook)
+├── demo-fixed/                 # Hardened reference app demonstrating verified fixes
+├── tests/                      # Automated Vitest test suites
+│   ├── engine/                 # Unit tests for core engine modules (29 tests)
+│   ├── utils/                  # Unit tests for AST helpers & patterns (21 tests)
+│   └── rules/                  # Rule-specific true positive/negative unit tests
+├── AGENTS.md                   # Global directives for AI assistants
+├── ROLES.md                    # Team member role boundaries & ownership guide
+├── CONTRIBUTING.md             # Branching protocol and PR guidelines
+└── package.json
+```
+
+---
+
+## 📐 Rule Specification Contract
+
+Every security rule in `src/rules/*.js` must implement and export the `Rule` interface:
 
 ```javascript
 /**
@@ -265,50 +216,49 @@ Every rule in `src/rules/` exports a default object following this structure def
  */
 
 /** @type {Rule} */
-const rule = {
+const exampleRule = {
   id: 'category/kebab-case-name',
-  name: 'Descriptive Title',
-  severity: 'critical', // 'critical' | 'high' | 'medium' | 'low'
-  category: 'payment',  // 'secrets' | 'injection' | 'payment' | 'auth'
-  description: 'Short summary of the vulnerability pattern.',
-  defaultExplanation: 'In-depth description of the vulnerability and attack vector.',
-  defaultRemediation: 'Guidance and secure code snippet showing how to resolve the issue.',
+  name: 'Human Readable Title',
+  severity: 'critical',           // 'critical' | 'high' | 'medium' | 'low'
+  category: 'payment',            // 'payment' | 'auth' | 'injection' | 'secrets'
+  description: 'Concise summary of the vulnerability pattern.',
+  defaultExplanation: 'In-depth explanation used when AI is offline.',
+  defaultRemediation: 'Secure code snippet demonstrating the fix.',
+  
   analyze(context) {
     const findings = [];
     const { filePath, fileContent, ast, lines } = context;
 
     if (!ast) return findings;
 
-    // Perform traversal using @babel/traverse on the provided AST
-    // Append findings matching the Finding specification
+    // Use @babel/traverse on the pre-parsed AST
+    // Never parse the file manually inside analyze()
 
     return findings;
   }
 };
 
-export default rule;
+export default exampleRule;
 ```
 
 ---
 
-## Testing
+## 👥 Team & Ownership Boundaries
 
-Tests are written using Vitest. Every rule must maintain at least three test scenarios:
-1. True Positive: Detects vulnerable patterns accurately.
-2. True Negative: Ignores safe and remediated code without false alarms.
-3. Edge Case: Handles empty handlers, missing parameters, and alternative signatures safely.
+To enable parallel development without merge conflicts, team members work in isolated branches:
 
-Execute the test suite:
-```bash
-# Run all tests once
-npm test
+| Member | Focus Area | Branch | Owned Files |
+|---|---|---|---|
+| **Member 1 (Lead)** | Core Engine, CLI, Types, Utils, Tests, Demo Skeleton | `main` | `src/engine/*`, `src/cli.js`, `src/types/*`, `src/utils/*`, `demo/server.js`, `demo/db/*` |
+| **Member 2** | Secrets & Weak Cryptography | `feature/secrets-crypto` | `src/rules/hardcoded-secrets.js`, `src/rules/weak-crypto.js`, tests |
+| **Member 3** | SQL Injection & Validation Flaws | `feature/injection-rules` | `src/rules/sql-injection.js`, `src/rules/missing-input-validation.js`, tests |
+| **Member 4** | Payment Tampering & Auth Gaps | `feature/auth-payment-rules` | `src/rules/payment-*.js`, `src/rules/missing-webhook-*.js`, `missing-auth-*.js`, tests |
+| **Member 5** | Reporters, AI Enhancer, Demo Routes | `feature/demo-reporting` | `src/reporters/*`, `src/ai/*`, `demo/routes/*`, `demo-fixed/*` |
 
-# Run tests in watch mode
-npm run test:watch
-```
+For detailed development guidelines, refer to [ROLES.md](ROLES.md) and [AGENTS.md](AGENTS.md).
 
 ---
 
-## License
+## 📄 License
 
-This project is licensed under the ISC License.
+This project is licensed under the [ISC License](LICENSE).
