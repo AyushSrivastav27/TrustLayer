@@ -38,8 +38,8 @@ Find your assigned feature branch, files, and deliverables below:
 If the team lead gave you direct collaborator access to the repo:
 ```bash
 # Clone the repository
-git clone https://github.com/<team-lead-username>/SecAuditScanner.git
-cd SecAuditScanner
+git clone https://github.com/vikalp1817243/TrustLayer.git
+cd TrustLayer
 ```
 
 #### Option B: If Forking (Recommended for Fork Workflow)
@@ -47,12 +47,12 @@ cd SecAuditScanner
 2. Click the **"Fork"** button (top-right corner) to create a copy under your personal GitHub account.
 3. Clone your fork locally:
    ```bash
-   git clone https://github.com/<YOUR-USERNAME>/SecAuditScanner.git
-   cd SecAuditScanner
+   git clone https://github.com/<YOUR-USERNAME>/TrustLayer.git
+   cd TrustLayer
    ```
 4. Set up the upstream remote to sync changes from the lead's repository:
    ```bash
-   git remote add upstream https://github.com/<team-lead-username>/SecAuditScanner.git
+   git remote add upstream https://github.com/vikalp1817243/TrustLayer.git
    git fetch upstream
    ```
 
@@ -113,10 +113,7 @@ Never push unverified code. Run test suites locally:
 npm test
 
 # Run only your specific test file
-npx vitest run tests/rules/your-rule-name.test.ts
-
-# Ensure there are no TypeScript build errors
-npm run build
+npx vitest run tests/rules/your-rule-name.test.js
 ```
 
 Every rule must include at least **3 unit tests**:
@@ -132,7 +129,7 @@ Write clear, descriptive commit messages:
 
 ```bash
 # Stage only your assigned files
-git add src/rules/hardcoded-secrets.ts tests/rules/hardcoded-secrets.test.ts
+git add src/rules/hardcoded-secrets.js tests/rules/hardcoded-secrets.test.js
 
 # Commit with a clean message
 git commit -m "feat(secrets): implement regex and Shannon entropy scanner for API keys"
@@ -162,7 +159,7 @@ git push origin feature/secrets-crypto
 
 ### Quality Checklist
 - [ ] Code strictly stays within my assigned file boundaries.
-- [ ] Implements the `Rule` contract (`src/types/rule.ts`).
+- [ ] Implements the `Rule` contract (`src/types/rule.js`).
 - [ ] Exported as `export default myRule`.
 - [ ] Added unit tests (true positive, true negative, edge case).
 - [ ] `npm test` passes with zero errors.
@@ -204,7 +201,7 @@ git push origin feature/<your-branch-name> --force-with-lease
 |---|---|---|
 | `git push origin main` | Fails or overwrites team code | Always push to `feature/<name>` |
 | `git merge main` into local main | Creates messy criss-cross merge commits | Let GitHub handle merges via PR |
-| Modifying `src/types/rule.ts` | Breaks everyone else's TypeScript compiler | Request type additions from the Team Lead |
+| Modifying `src/types/rule.js` | Breaks team-wide type contracts | Request type additions from the Team Lead |
 | Modifying `package.json` | Causes npm dependency lock conflicts | Ask Team Lead before adding new npm packages |
 | Pushing without running `npm test` | Breaks CI/CD builds for the entire team | Run `npm test` before every commit |
 

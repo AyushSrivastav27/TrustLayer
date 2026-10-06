@@ -10,9 +10,9 @@ TrustLayer is a CLI-based static security scanner specialized for Node.js/Expres
 
 ```
 trustlayer scan ./project
-  → File Discovery (glob: .js, .ts, .jsx, .tsx, .json, .env)
-    → AST Parsing (@babel/parser with TypeScript + JSX plugins)
-      → Rule Engine (auto-discovered from src/rules/*.ts)
+  → File Discovery (glob: source .js, .jsx, .mjs, .cjs; config/secrets .json, .env)
+    → AST Parsing (@babel/parser with JSX support for JS source files)
+      → Rule Engine (auto-discovered from src/rules/*.js)
         → Finding[] (deterministic, reproducible)
           → AI Enhancement (optional LLM: explanation + remediation + attack chains)
             → Report Generation (SECURITY-REPORT.md or JSON)
@@ -21,7 +21,7 @@ trustlayer scan ./project
 ### Non-Negotiable Principles
 
 1. **Scanner MUST produce findings without any LLM API.** AI is enhancement, not detection.
-2. **Rules are auto-discovered.** Adding a new `.ts` file to `src/rules/` automatically registers it. No central import file.
+2. **Rules are auto-discovered.** Adding a new `.js` file to `src/rules/` automatically registers it via native ESM `import()`. No central import file.
 3. **Single-file scope only.** No cross-file taint tracking. Stay intra-function/intra-file.
 4. **Express-framework-aware.** Rules understand `router.get/post()`, middleware chains, `req.body/params/query`.
 5. **E-commerce/payment focus.** This is what differentiates us from every generic SAST tool.
@@ -118,10 +118,10 @@ eval(), Function(), child_process.exec(), child_process.execSync()
 
 ## File Ownership Boundaries
 
-**Team Lead owns**: `src/engine/`, `src/cli.ts`, `src/types/`, `src/utils/`
-**Member 2 owns**: `src/rules/hardcoded-secrets.ts`, `src/rules/weak-crypto.ts`
-**Member 3 owns**: `src/rules/sql-injection.ts`, `src/rules/missing-input-validation.ts`
-**Member 4 owns**: `src/rules/payment-amount-tampering.ts`, `src/rules/missing-webhook-verification.ts`, `src/rules/missing-auth-middleware.ts`
+**Team Lead owns**: `src/engine/`, `src/cli.js`, `src/types/`, `src/utils/`
+**Member 2 owns**: `src/rules/hardcoded-secrets.js`, `src/rules/weak-crypto.js`
+**Member 3 owns**: `src/rules/sql-injection.js`, `src/rules/missing-input-validation.js`
+**Member 4 owns**: `src/rules/payment-amount-tampering.js`, `src/rules/missing-webhook-verification.js`, `src/rules/missing-auth-middleware.js`
 **Member 5 owns**: `src/reporters/`, `src/ai/`, `demo/routes/`, `demo-fixed/`
 
 **RULE: Never modify files you don't own. If you need a change in someone else's file, request it via PR comment.**
@@ -209,7 +209,7 @@ Deliberately vulnerable Express.js e-commerce API with 8 vulnerabilities:
 
 - Framework: Vitest
 - Minimum 3 tests per rule: true positive, true negative, edge case
-- Test file naming: `tests/rules/<rule-name>.test.ts`
+- Test file naming: `tests/rules/<rule-name>.test.js`
 - Tests should use inline code strings, not external fixture files when possible
 
 ```typescript
