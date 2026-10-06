@@ -113,6 +113,7 @@ SecAuditScanner/
 │   └── fixtures/               # Vulnerable and secure code samples
 ├── package.json
 ├── AGENTS.md                   # Collaboration rules for AI assistants
+├── ROLES.md                    # Team member roles & AI boundary selector
 ├── CONTRIBUTING.md             # Contributor workflow and ownership guidelines
 └── README.md
 ```
@@ -148,22 +149,65 @@ SecAuditScanner/
 
 ---
 
+---
+
+## Current Development Status
+
+| Component | Status | Owner | Highlights |
+|---|---|---|---|
+| **Core Types & Contracts** | ✅ Complete | Team Lead | JSDoc contracts for `Rule`, `Finding`, `AnalysisContext`, `ScanReport` |
+| **Engine & Pipeline** | ✅ Complete | Team Lead | Babel AST parser, dynamic ESM rule discovery, file discovery, orchestrator |
+| **AST Helpers & Patterns** | ✅ Complete | Team Lead | `isMethodCall`, `isExpressRoute`, `isReqAccess`, Shannon entropy, unit tests |
+| **CLI & Terminal UX** | ✅ Complete | Team Lead | ANSI Shadow banner, live Ora spinner, smart default report writing (`SECURITY-REPORT.md`) |
+| **Secrets & Crypto Rules** | 🔄 In Progress | Member 2 | Hardcoded secret detection, weak hashing, high-entropy token analysis |
+| **Injection Rules** | 🔄 In Progress | Member 3 | SQL injection, template literal taint tracking, input validation |
+| **Payment & Auth Rules** | 🔄 In Progress | Member 4 | Client-controlled amount, webhook signature verification, missing auth |
+| **Reporters & AI** | 🔄 In Progress | Member 5 | Markdown and JSON generators, LLM exploit scenarios, demo routes |
+
+> 👥 **Working on the project?** See [ROLES.md](./ROLES.md) to identify your role and file ownership boundaries before editing files.
+
+---
+
 ## Usage
 
-### Basic Scan
-Scan a directory or project path:
-```bash
-node src/cli.js scan ./path-to-project
+```text
+████████╗██████╗ ██╗   ██╗███████╗████████╗██╗      █████╗ ██╗   ██╗███████╗██████╗ 
+╚══██╔══╝██╔══██╗██║   ██║██╔════╝╚══██╔══╝██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
+   ██║   ██████╔╝██║   ██║███████╗   ██║   ██║     ███████║ ╚████╔╝ █████╗  ██████╔╝
+   ██║   ██╔══██╗██║   ██║╚════██║   ██║   ██║     ██╔══██║  ╚██╔╝  ██╔══╝  ██╔══██╗
+   ██║   ██║  ██║╚██████╔╝███████║   ██║   ███████╗██║  ██║   ██║   ███████╗██║  ██║
+   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 ```
 
-### Output Formats
-Generate formatted outputs:
+### Basic Scan
+Scan current directory (automatically outputs console summary and saves `SECURITY-REPORT.md`):
 ```bash
-# Markdown report
-node src/cli.js scan ./path-to-project --format markdown --output SECURITY-REPORT.md
+node src/cli.js
+# or
+node src/cli.js scan
+```
 
-# JSON report
-node src/cli.js scan ./path-to-project --format json --output report.json
+Scan a specific project or directory:
+```bash
+node src/cli.js scan ./demo
+```
+
+Scan a single file:
+```bash
+node src/cli.js scan ./routes/checkout.js
+```
+
+### Output Formats & Smart Saving
+TrustLayer automatically infers file extensions and generates formatted reports:
+```bash
+# Markdown report (auto-appends .md if omitted)
+node src/cli.js scan ./demo -o audit
+
+# JSON report (auto-appends .json and switches format)
+node src/cli.js scan ./demo -o audit -f json
+
+# Console output only (suppresses file creation)
+node src/cli.js scan ./demo --no-report
 ```
 
 ### Scanning the Demo Application
