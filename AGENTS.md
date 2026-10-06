@@ -1,6 +1,6 @@
 # AGENTS.md — Global Instructions for All AI Coding Agents 🤖
 
-> **Target Audience:** Any AI assistant, coding agent, or LLM-powered tool (Cursor, Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Aider, Windsurf, Roo, etc.) operating inside the **TrustLayer (SecAuditScanner)** repository.
+> **Target Audience:** Any AI assistant, coding agent, or LLM-powered tool (Cursor, Claude Code, GitHub Copilot, Gemini CLI, Antigravity, Aider, Windsurf, Roo, etc.) operating inside the **TrustLayer** repository.
 > 
 > **MANDATORY NOTICE TO AI AGENTS:** Before reading files, generating code, executing shell commands, or suggesting diffs, **YOU MUST READ AND ADHERE TO EVERY DIRECTIVE IN THIS DOCUMENT WITHOUT EXCEPTION.**
 
@@ -9,7 +9,7 @@
 ## 1. Project Context & Identity
 
 - **Project Name:** TrustLayer
-- **Repository:** `SecAuditScanner`
+- **Repository:** `TrustLayer` (`vikalp1817243/TrustLayer`)
 - **Domain:** Cybersecurity Hackathon — Theme: *"Shipped Fast, Left Open"*
 - **Core Technology:** Node.js 20+ / Modern JavaScript (ES Modules) / `@babel/parser` / `@babel/traverse` / `Vitest` / `Commander.js`
 - **Purpose:** A deterministic, framework-aware static security scanner targeting Node.js/Express APIs. It flags hardcoded secrets, injection flaws, missing auth guards, IDOR/BOLA patterns, and payment/transaction tampering before production deployment.
