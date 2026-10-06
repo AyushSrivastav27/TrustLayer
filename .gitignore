@@ -6,6 +6,12 @@ node_modules/
 demo/node_modules/
 coverage/
 .DS_Store
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+demo/db/*.db*
+demo/db/*.sqlite*
 Artifacts/CLAUDE.md
 # Logs
 logs
