@@ -43,18 +43,18 @@ Existing static analysis tools (Semgrep, ESLint-security, Gitleaks, SonarQube) s
 ## 🏗️ Core Architecture & Pipeline
 
 ```mermaid
-flowchart TD
-    CLI["CLI Command (Commander.js)<br/>trustlayer scan [target]"] --> Disc["File Discovery (glob)<br/>.js, .mjs, .cjs"]
-    Disc --> Parser["Babel AST Parser<br/>@babel/parser (unambiguous, JSX)"]
-    Registry["Rule Registry<br/>Dynamic import() from src/rules/"] --> Engine["Scanner Orchestrator<br/>Intra-handler AST Traversal"]
-    Parser --> Engine
-    Engine --> Findings["Structured Findings<br/>(file, line, rule, severity, codeSnippet)"]
-    Findings --> AI["[Optional] AI Enhancer<br/>Exploit scenarios & remediation diffs"]
-    AI --> Reporters["Report Generators"]
-    Findings --> Reporters
-    Reporters --> Console["Terminal Summary (ANSI & Tables)"]
-    Reporters --> Markdown["Markdown Audit (SECURITY-REPORT.md)"]
-    Reporters --> JSON["Machine-Readable (audit.json)"]
+graph TD
+    A["CLI Entrypoint (trustlayer scan)"] --> B["File Discovery (Glob: .js, .mjs, .cjs)"]
+    B --> C["Babel AST Parser (@babel/parser)"]
+    D["Rule Registry (Dynamic ESM Loader)"] --> E["Scanner Engine (Intra-Handler Traversal)"]
+    C --> E
+    E --> F["Structured Findings (Rule, File, Line, Code)"]
+    F --> G["Optional AI Enhancer (Exploits & Fix Diffs)"]
+    G --> H["Report Generators"]
+    F --> H
+    H --> I["Console Summary (ANSI Formatted Table)"]
+    H --> J["Markdown Report (SECURITY-REPORT.md)"]
+    H --> K["JSON Export (audit.json)"]
 ```
 
 ---
