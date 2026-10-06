@@ -207,20 +207,44 @@ TrustLayer/
 
 > **Note:** The CLI commands below describe the planned interface currently being implemented across feature branches.
 
-### Basic Scan
-Scan a directory or project path:
-```bash
-node src/cli.js scan ./path-to-project
+```text
+████████╗██████╗ ██╗   ██╗███████╗████████╗██╗      █████╗ ██╗   ██╗███████╗██████╗ 
+╚══██╔══╝██╔══██╗██║   ██║██╔════╝╚══██╔══╝██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
+   ██║   ██████╔╝██║   ██║███████╗   ██║   ██║     ███████║ ╚████╔╝ █████╗  ██████╔╝
+   ██║   ██╔══██╗██║   ██║╚════██║   ██║   ██║     ██╔══██║  ╚██╔╝  ██╔══╝  ██╔══██╗
+   ██║   ██║  ██║╚██████╔╝███████║   ██║   ███████╗██║  ██║   ██║   ███████╗██║  ██║
+   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
 ```
 
-### Output Formats
-Generate formatted outputs:
+### Basic Scan
+Scan current directory (automatically outputs console summary and saves `SECURITY-REPORT.md`):
 ```bash
-# Markdown report
-node src/cli.js scan ./path-to-project --format markdown --output SECURITY-REPORT.md
+node src/cli.js
+# or
+node src/cli.js scan
+```
 
-# JSON report
-node src/cli.js scan ./path-to-project --format json --output report.json
+Scan a specific project or directory:
+```bash
+node src/cli.js scan ./demo
+```
+
+Scan a single file:
+```bash
+node src/cli.js scan ./routes/checkout.js
+```
+
+### Output Formats & Smart Saving
+TrustLayer automatically infers file extensions and generates formatted reports:
+```bash
+# Markdown report (auto-appends .md if omitted)
+node src/cli.js scan ./demo -o audit
+
+# JSON report (auto-appends .json and switches format)
+node src/cli.js scan ./demo -o audit -f json
+
+# Console output only (suppresses file creation)
+node src/cli.js scan ./demo --no-report
 ```
 
 ### Scanning the Demo Application
