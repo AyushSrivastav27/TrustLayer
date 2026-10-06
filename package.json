@@ -1,0 +1,43 @@
+{
+  "name": "trustlayer",
+  "version": "1.0.0",
+  "description": "Deterministic AST-based static security scanner for Node.js/Express APIs",
+  "type": "module",
+  "main": "src/cli.js",
+  "bin": {
+    "trustlayer": "./src/cli.js"
+  },
+  "scripts": {
+    "start": "node src/cli.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "scan:demo": "node src/cli.js scan ./demo"
+  },
+  "keywords": [
+    "security",
+    "sast",
+    "ast",
+    "static-analysis",
+    "express",
+    "node"
+  ],
+  "author": "Vikalp Pratap Yadav",
+  "license": "ISC",
+  "dependencies": {
+    "@babel/parser": "^7.29.9",
+    "@babel/traverse": "^8.0.6",
+    "@babel/types": "^8.0.6",
+    "chalk": "^6.0.1",
+    "commander": "^15.0.0",
+    "dotenv": "^18.0.5",
+    "glob": "^13.0.6",
+    "ora": "^9.4.1"
+  },
+  "devDependencies": {
+    "@types/babel__traverse": "^7.28.0",
+    "@types/glob": "^9.0.0",
+    "@types/node": "^26.6.4",
+    "tsx": "^4.23.15",
+    "vitest": "^1.6.1"
+  }
+}
