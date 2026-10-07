@@ -1,0 +1,167 @@
+import path from 'node:path';
+import { correlateAttackChains, getDeterministicScenario } from '../ai/enhancer.js';
+
+const SEVERITY_BADGES = {
+  critical: '🔴 **CRITICAL**',
+  high: '🟠 **HIGH**',
+  medium: '🟡 **MEDIUM**',
+  low: '🔵 **LOW**'
+};
+
+const SEVERITY_ICONS = {
+  critical: '🔴',
+  high: '🟠',
+  medium: '🟡',
+  low: '🔵'
+};
+
+/**
+ * Formats a ScanReport object into a comprehensive GitHub Flavored Markdown report.
+ *
+ * @param {import('../types/report.js').ScanReport} report - The security scan report object
+ * @returns {string} Formatted Markdown content
+ */
+export function generateMarkdownReport(report) {
+  if (!report) {
+    return '# 🔒 TrustLayer Security Report\n\n*No scan report data available.*';
+  }
+
+  const {
+    scannerVersion = '1.0.0',
+    scanDate = new Date().toISOString(),
+    targetDirectory = process.cwd(),
+    summary = {
+      totalFiles: 0,
+      totalFindings: 0,
+      severities: { critical: 0, high: 0, medium: 0, low: 0 },
+      scanDurationMs: 0
+    },
+    findings = [],
+    attackChains = []
+  } = report;
+
+  const sev = summary.severities || { critical: 0, high: 0, medium: 0, low: 0 };
+  const duration = summary.scanDurationMs ? `${summary.scanDurationMs}ms` : 'N/A';
+
+  let md = `# 🛡️ TrustLayer Security Audit Report\n\n`;
+  md += `> **Deterministic Static Security Scanner for Node.js & Express APIs**  \n`;
+  md += `> *Scanner Version: v${scannerVersion}* | *Scan Date: ${scanDate}*\n\n`;
+  md += `---\n\n`;
+
+  // Executive Summary Card
+  md += `## 📊 Executive Summary\n\n`;
+  md += `| Metric | Value |\n`;
+  md += `|:---|:---|\n`;
+  md += `| **Target Scanned** | \`${targetDirectory}\` |\n`;
+  md += `| **Files Analyzed** | **${summary.totalFiles}** files |\n`;
+  md += `| **Scan Duration** | **${duration}** |\n`;
+  md += `| **Total Issues Found** | **${summary.totalFindings}** |\n`;
+  md += `| **Risk Profile** | 🔴 Critical: **${sev.critical}** \| 🟠 High: **${sev.high}** \| 🟡 Medium: **${sev.medium}** \| 🔵 Low: **${sev.low}** |\n\n`;
+
+  // Clean Scan Section
+  if (findings.length === 0) {
+    md += `## ✅ Clean Scan — No Vulnerabilities Detected\n\n`;
+    md += `All automated static analysis checks passed with zero security findings.  \n`;
+    md += `No hardcoded secrets, SQL injection flaws, unverified webhooks, or payment tampering patterns were found in the scanned codebase.\n\n`;
+    md += `---\n`;
+    return md;
+  }
+
+  // Correlated Attack Chains (via AI layer or heuristic correlation)
+  let activeChains = (attackChains && attackChains.length > 0) ? attackChains : [];
+  if (activeChains.length === 0 && typeof correlateAttackChains === 'function') {
+    try {
+      activeChains = correlateAttackChains(findings);
+    } catch {
+      activeChains = [];
+    }
+  }
+
+  if (activeChains && activeChains.length > 0) {
+    md += `## ⚡ Correlated Attack Chains (AI Correlated)\n\n`;
+    md += `The AI reasoning layer correlated multiple independent findings into the following composite exploit chains:\n\n`;
+
+    for (const [index, chain] of activeChains.entries()) {
+      const chainSev = (chain.severity || 'high').toUpperCase();
+      const chainIcon = SEVERITY_ICONS[chain.severity] || '⚠️';
+
+      md += `### ${chainIcon} Chain #${index + 1}: ${chain.title}\n\n`;
+      md += `**Severity**: \`${chainSev}\`  \n`;
+      if (chain.findingIds && chain.findingIds.length > 0) {
+        md += `**Participating Rules**: ${chain.findingIds.map(id => `\`${id}\``).join(', ')}  \n`;
+      }
+      md += `\n${chain.description}\n\n`;
+      md += `---\n\n`;
+    }
+  }
+
+  // Findings Overview Table
+  md += `## 📋 Findings Overview\n\n`;
+  md += `| # | Severity | Rule ID | Location | Message |\n`;
+  md += `|---|---|---|---|---|\n`;
+
+  findings.forEach((f, idx) => {
+    const relFile = f.file ? (path.relative(process.cwd(), f.file) || f.file) : 'unknown';
+    const normalizedSev = (f.severity || 'unknown').toLowerCase();
+    const badge = SEVERITY_BADGES[normalizedSev] || (f.severity || 'UNKNOWN').toUpperCase();
+    const lineStr = f.line ? `:${f.line}` : '';
+    const loc = `\`${relFile}${lineStr}\``;
+    const safeMsg = String(f.message || f.ruleId || '').replace(/\|/g, '\\|');
+    md += `| ${idx + 1} | ${badge} | \`${f.ruleId}\` | ${loc} | ${safeMsg} |\n`;
+  });
+
+  md += `\n---\n\n`;
+
+  // Detailed Finding Cards
+  md += `## 🔍 Detailed Vulnerability Breakdown\n\n`;
+
+  findings.forEach((f, idx) => {
+    const relFile = f.file ? (path.relative(process.cwd(), f.file) || f.file) : 'unknown';
+    const normalizedSev = (f.severity || 'unknown').toLowerCase();
+    const icon = SEVERITY_ICONS[normalizedSev] || '⚠️';
+    const title = f.message || f.ruleId || 'Vulnerability Finding';
+
+    md += `### ${icon} #${idx + 1} [${(f.severity || 'UNKNOWN').toUpperCase()}] ${title}\n\n`;
+    md += `- **Rule**: \`${f.ruleId}\`\n`;
+    const lineCol = f.line ? `:${f.line}${f.column ? `:${f.column}` : ''}` : '';
+    md += `- **Location**: \`${relFile}${lineCol}\`\n`;
+    md += `- **Confidence**: \`${(f.confidence || 'high').toUpperCase()}\`\n\n`;
+
+    if (f.codeSnippet) {
+      md += `#### 🚨 Vulnerable Code\n`;
+      const fence = f.codeSnippet.includes('```') ? '````' : '```';
+      md += `${fence}javascript\n${f.codeSnippet}\n${fence}\n\n`;
+    }
+
+    if (f.explanation) {
+      md += `#### 💥 Threat Assessment & Impact\n`;
+      md += `${f.explanation}\n\n`;
+    }
+
+    const scenario = f.aiExploitScenario || (typeof getDeterministicScenario === 'function' ? getDeterministicScenario(f.ruleId) : null);
+    if (scenario) {
+      md += `#### 🎯 Step-by-Step Exploitation Scenario\n`;
+      md += `${scenario}\n\n`;
+    }
+
+    if (f.remediation) {
+      md += `#### 🛠️ Recommended Remediation\n`;
+      if (typeof f.remediation === 'string' && f.remediation.trim().startsWith('```')) {
+        md += `${f.remediation}\n\n`;
+      } else {
+        const fence = typeof f.remediation === 'string' && f.remediation.includes('```') ? '````' : '```';
+        md += `${fence}javascript\n${f.remediation}\n${fence}\n\n`;
+      }
+    }
+
+    md += `---\n\n`;
+  });
+
+  // Footer
+  md += `*Generated automatically by [TrustLayer](https://github.com/vikalp1817243/TrustLayer) Static Security Scanner.*  \n`;
+  md += `*Theme: "Shipped Fast, Left Open" — Cybersecurity Hackathon 2026*\n`;
+
+  return md;
+}
+
+export default generateMarkdownReport;
