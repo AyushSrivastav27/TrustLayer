@@ -4,7 +4,7 @@
 > *Built for the Cybersecurity Hackathon — Theme: "Shipped Fast, Left Open"*
 
 [![Node.js Version](https://img.shields.io/badge/Node.js-20%2B-brightgreen.svg)](https://nodejs.org/)
-[![Test Suite](https://img.shields.io/badge/Vitest-173%20passed-success.svg)](https://vitest.dev/)
+[![Test Suite](https://img.shields.io/badge/Vitest-225%20passed-success.svg)](https://vitest.dev/)
 [![Language](https://img.shields.io/badge/Language-Modern%20ESM-yellow.svg)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![License](https://img.shields.io/badge/License-ISC-blue.svg)](LICENSE)
 [![Architecture](https://img.shields.io/badge/Design-Zero--LLM%20Detection%20Core-orange.svg)](#core-architecture)
@@ -63,25 +63,26 @@ graph TD
 
 ## 🚦 Project Status & Implementation Matrix
 
-All 5 core layers and specialized rule categories are **fully implemented, integrated, and verified** with **133/133 tests passing**:
+All 5 core layers and specialized rule categories are **fully implemented, integrated, and verified** with **225/225 tests passing (100% pass rate)**:
 
 | Subsystem / Layer | Component / Files | Status | Test Coverage |
 |---|---|:---:|:---:|
-| **Data Contracts** | `src/types/rule.js`, `src/types/finding.js`, `src/types/report.js` | 🟢 Completed | JSDoc Validated |
-| **AST & Pattern Helpers** | `src/utils/ast-helpers.js`, `src/utils/patterns.js` | 🟢 Completed | 21 / 21 Tests Passing |
-| **Babel AST Parser** | `src/engine/ast-parser.js` | 🟢 Completed | 9 / 9 Tests Passing |
-| **File Discovery** | `src/engine/file-discovery.js` | 🟢 Completed | 8 / 8 Tests Passing |
-| **Rule Auto-Registry** | `src/engine/rule-registry.js` | 🟢 Completed | 5 / 5 Tests Passing |
-| **Scanner Orchestrator** | `src/engine/scanner.js` | 🟢 Completed | 7 / 7 Tests Passing |
-| **CLI Interface** | `src/cli.js` (Commander.js, ANSI Banner, exit codes) | 🟢 Completed | Verified E2E |
-| **Payment Security Rules** | `payment-amount-tampering.js`, `missing-webhook-verification.js` | 🟢 Completed | 18 / 18 Tests Passing |
-| **Authentication Rules** | `src/rules/missing-auth-middleware.js` | 🟢 Completed | 8 / 8 Tests Passing |
-| **Secrets & Crypto Rules** | `src/rules/hardcoded-secrets.js`, `src/rules/weak-crypto.js` | 🟢 Completed | 22 / 22 Tests Passing |
-| **Injection Rules** | `src/rules/sql-injection.js`, `missing-input-validation.js` | 🟢 Completed | 9 / 9 Tests Passing |
-| **Reporting & SARIF** | `src/reporters/markdown-reporter.js`, `src/reporters/json-reporter.js` | 🟢 Completed | 14 / 14 Tests Passing |
-| **AI & Attack Chains** | `src/ai/enhancer.js` (Offline Heuristics + Multi-LLM) | 🟢 Completed | 8 / 8 Tests Passing |
+| **Data Contracts** | `src/types/rule.js`, `src/types/finding.js`, `src/types/report.js` | 🟢 Completed | 7 / 7 Tests Passing (`finding.test.js`) |
+| **AST & Pattern Helpers** | `src/utils/ast-helpers.js`, `src/utils/patterns.js` | 🟢 Completed | 22 / 22 Tests Passing |
+| **Babel AST Parser** | `src/engine/ast-parser.js` | 🟢 Completed | 10 / 10 Tests Passing |
+| **File Discovery** | `src/engine/file-discovery.js` | 🟢 Completed | 11 / 11 Tests Passing |
+| **Rule Auto-Registry** | `src/engine/rule-registry.js` | 🟢 Completed | 7 / 7 Tests Passing |
+| **Scanner Orchestrator** | `src/engine/scanner.js` | 🟢 Completed | 12 / 12 Tests Passing |
+| **CLI Interface** | `src/cli.js` (Commander.js, ANSI Banner, exit codes) | 🟢 Completed | 26 / 26 Tests Passing (`cli.test.js`) |
+| **Payment Security Rules** | `payment-amount-tampering.js`, `missing-webhook-verification.js` | 🟢 Completed | 22 / 22 Tests Passing |
+| **Authentication Rules** | `src/rules/missing-auth-middleware.js` | 🟢 Completed | 12 / 12 Tests Passing |
+| **Secrets & Crypto Rules** | `src/rules/hardcoded-secrets.js`, `src/rules/weak-crypto.js` | 🟢 Completed | 32 / 32 Tests Passing |
+| **Injection Rules** | `src/rules/sql-injection.js`, `missing-input-validation.js` | 🟢 Completed | 11 / 11 Tests Passing |
+| **Reporting & SARIF** | `src/reporters/markdown-reporter.js`, `src/reporters/json-reporter.js` | 🟢 Completed | 21 / 21 Tests Passing |
+| **AI & Attack Chains** | `src/ai/enhancer.js` (Offline Heuristics + Gemini 3.8 Flash) | 🟢 Completed | 13 / 13 Tests Passing |
 | **Vulnerable Demo App** | `demo/server.js`, `demo/routes/*`, `demo/db/*` | 🟢 Completed | 8 Canonical Flaws Verified |
 | **Hardened Reference App** | `demo-fixed/*` (Verified Remediation Counterpart) | 🟢 Completed | 100% Clean Scan (0 Flaws) |
+| **E2E Demo Verification** | `tests/reporters/demo-verification.test.js` | 🟢 Completed | 19 / 19 Tests Passing |
 
 ---
 
@@ -124,27 +125,45 @@ node src/cli.js scan
 # 2. Scan a specific project directory
 node src/cli.js scan ./demo
 
-# 3. Scan vulnerable demo routes (flags exactly 8 canonical vulnerabilities)
-node src/cli.js scan ./demo/routes
+# 3. Scan with AI enhancements & correlated multi-stage attack chains
+node src/cli.js scan ./demo --ai
 
-# 4. Scan hardened reference application (demonstrates 100% clean scan)
+# 4. Verbose mode: display code remediation diffs & exploit previews in terminal
+node src/cli.js scan ./demo -v
+
+# 5. Export OASIS SARIF v2.1.0 for GitHub Code Scanning / IDE security tabs
+node src/cli.js scan ./demo -f sarif -o audit.sarif
+
+# 6. Export structured JSON for custom CI/CD pipelines
+node src/cli.js scan ./demo -f json -o audit.json
+
+# 7. Compare vulnerable demo vs hardened reference app side-by-side
+npm run demo:compare
+
+# 8. Scan hardened reference application (demonstrates 100% clean scan)
 node src/cli.js scan ./demo-fixed
 
-# 5. Scan a single file
-node src/cli.js scan ./demo/server.js
-
-# 6. Save report with custom Markdown name & correlated attack chains
-node src/cli.js scan ./demo/routes -o audit-summary
-
-# 7. Export structured JSON or OASIS SARIF v2.1.0 for CI/CD pipelines
-node src/cli.js scan ./demo/routes -o audit -f json
-
-# 8. Terminal summary only (suppress file output)
+# 9. Terminal summary only (suppress file output)
 node src/cli.js scan ./demo --no-report
 
-# 9. Exclude custom directories from scan
-node src/cli.js scan ./demo --ignore "**/fixtures/**"
+# 10. Filter findings by minimum severity or specific category
+node src/cli.js scan ./demo -s critical
+node src/cli.js scan ./demo -c payment
 ```
+
+### AI Mode Configuration (Online vs Offline)
+
+TrustLayer operates with a **Deterministic Detection Core**:
+- **Offline Heuristics (Default)**: Automatically correlates 4 multi-stage attack chains (e.g., Unauthenticated Orders → Client-Controlled Amount Tampering) and provides deterministic code fixes with **zero network requests and zero LLM dependencies**.
+- **Online Gemini 3.8 Flash Mode**: When a Gemini API key is configured, TrustLayer enriches findings with tailored business impact assessments, realistic exploit walk-throughs, and contextual code remediation diffs:
+  ```bash
+  # Option A: Set in environment or .env file (Recommended)
+  export GEMINI_API_KEY="AIzaSy..."
+  node src/cli.js scan ./demo --ai
+
+  # Option B: Pass via flag
+  node src/cli.js scan ./demo --ai --api-key "AIzaSy..."
+  ```
 
 ---
 
@@ -153,34 +172,36 @@ node src/cli.js scan ./demo --ignore "**/fixtures/**"
 The repository uses **Vitest** for fast unit and integration testing.
 
 ```bash
-# Run all 133 tests across all 16 test suites
+# Run all 225 tests across all 18 test suites
 npm test
 
 # Run tests in watch mode during development
 npm run test:watch
 ```
 
-Current test status: **133 passing tests** across 16 test files:
-- **Core Engine (29 tests)**:
-  - `tests/engine/ast-parser.test.js` (9 tests)
-  - `tests/engine/file-discovery.test.js` (8 tests)
-  - `tests/engine/rule-registry.test.js` (5 tests)
-  - `tests/engine/scanner.test.js` (7 tests)
-- **AST Utilities (21 tests)**:
-  - `tests/utils/ast-helpers.test.js` (21 tests)
-- **Security Rules (57 tests)**:
-  - `tests/rules/payment-amount-tampering.test.js` (9 tests)
+Current test status: **225 passing tests (100%)** across 18 test files:
+- **Core Engine & CLI (66 tests)**:
+  - `tests/cli.test.js` (26 tests)
+  - `tests/engine/scanner.test.js` (12 tests)
+  - `tests/engine/file-discovery.test.js` (11 tests)
+  - `tests/engine/ast-parser.test.js` (10 tests)
+  - `tests/engine/rule-registry.test.js` (7 tests)
+- **AST Utilities & Contracts (29 tests)**:
+  - `tests/utils/ast-helpers.test.js` (22 tests)
+  - `tests/engine/finding.test.js` (7 tests)
+- **Security Rules (79 tests)**:
+  - `tests/rules/hardcoded-secrets.test.js` (16 tests)
+  - `tests/rules/weak-crypto.test.js` (16 tests)
+  - `tests/rules/payment-amount-tampering.test.js` (13 tests)
+  - `tests/rules/missing-auth-middleware.test.js` (12 tests)
   - `tests/rules/missing-webhook-verification.test.js` (9 tests)
-  - `tests/rules/missing-auth-middleware.test.js` (8 tests)
-  - `tests/rules/hardcoded-secrets.test.js` (11 tests)
-  - `tests/rules/weak-crypto.test.js` (11 tests)
-  - `tests/rules/sql-injection.test.js` (5 tests)
+  - `tests/rules/sql-injection.test.js` (7 tests)
   - `tests/rules/missing-input-validation.test.js` (4 tests)
-- **Reporters, AI & E2E Verification (26 tests)**:
-  - `tests/reporters/markdown-reporter.test.js` (8 tests)
-  - `tests/reporters/json-reporter.test.js` (6 tests)
-  - `tests/reporters/enhancer.test.js` (8 tests)
-  - `tests/reporters/demo-verification.test.js` (4 tests)
+- **Reporters, AI & E2E Verification (51 tests)**:
+  - `tests/reporters/demo-verification.test.js` (19 tests)
+  - `tests/reporters/enhancer.test.js` (13 tests)
+  - `tests/reporters/json-reporter.test.js` (12 tests)
+  - `tests/reporters/markdown-reporter.test.js` (9 tests)
 
 ---
 

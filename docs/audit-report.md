@@ -5,7 +5,7 @@
 ---
 
 > [!IMPORTANT]
-> **Test Suite Status: ✅ 185/185 tests passing across all 18 test files.** All engine, rule, utility, reporter, and demo verification modules are functional. Member 1 (Team Lead), Member 2 (Secrets & Cryptography), and Member 3 (Injection Rules) issues are fully resolved and hardened. This audit documents architecture, correctness gaps, bypass opportunities, missing coverage, implementation plans, and demo day priorities across all 5 team members.
+> **Test Suite Status: ✅ 225/225 tests passing across all 18 test files (100% pass rate).** All engine, rule, utility, reporter, AI enhancement, and demo verification modules are fully functional and hardened. Issues across all 5 team members (Member 1 Lead, Member 2 Secrets/Crypto, Member 3 Injection, Member 4 Auth/Payment, Member 5 Reporters/AI/Demo) are completely resolved, with online/offline AI mode and SARIF v2.1.0 production ready.
 
 ---
 
@@ -274,9 +274,9 @@ The rule previously tracked auth via `router.use(authenticate)` but did not hand
 
 ## Member 5 — `src/reporters/`, `src/ai/enhancer.js`, `demo/routes/`, `demo-fixed/`, `tests/reporters/`
 
-**Test Suite Status: ✅ 26/26 tests passing across 4 test files.**
+**Test Suite Status: ✅ 58/58 tests passing across Member 5 test suites (19 demo-verification, 13 enhancer, 12 json-reporter, 9 markdown-reporter, plus 5 E2E CLI reporter tests).**
 
-Member 5's scope is the largest and most cross-cutting: report generation (Markdown + JSON/SARIF), the AI enhancement layer, the vulnerable demo application, the hardened `demo-fixed` counterpart, and the end-to-end integration tests. The overall quality is high, but there are meaningful gaps in all subsystems worth addressing.
+Member 5's scope is the largest and most cross-cutting: report generation (Markdown + JSON/SARIF), the AI enhancement layer, the vulnerable demo application, the hardened `demo-fixed` counterpart, and the end-to-end integration tests. All identified issues and architecture gaps have been resolved and verified.
 
 ---
 
@@ -284,9 +284,9 @@ Member 5's scope is the largest and most cross-cutting: report generation (Markd
 
 | File | Status | Test Coverage |
 |---|---|---|
-| [`src/reporters/markdown-reporter.js`](file:///home/jay/Documents/TrustLayer/src/reporters/markdown-reporter.js) | ✅ Implemented | 8 tests |
-| [`src/reporters/json-reporter.js`](file:///home/jay/Documents/TrustLayer/src/reporters/json-reporter.js) | ✅ Implemented | 6 tests |
-| [`src/ai/enhancer.js`](file:///home/jay/Documents/TrustLayer/src/ai/enhancer.js) | ✅ Implemented | 8 tests |
+| [`src/reporters/markdown-reporter.js`](file:///home/jay/Documents/TrustLayer/src/reporters/markdown-reporter.js) | ✅ Implemented (Pure presenter + AI provenance) | 9 tests |
+| [`src/reporters/json-reporter.js`](file:///home/jay/Documents/TrustLayer/src/reporters/json-reporter.js) | ✅ Implemented (SARIF v2.1.0 + Circular safety) | 12 tests |
+| [`src/ai/enhancer.js`](file:///home/jay/Documents/TrustLayer/src/ai/enhancer.js) | ✅ Implemented (Gemini 3.8 Flash + Offline heuristics) | 13 tests |
 | [`demo/routes/auth.js`](file:///home/jay/Documents/TrustLayer/demo/routes/auth.js) | ✅ Vulnerable demo | E2E tested |
 | [`demo/routes/checkout.js`](file:///home/jay/Documents/TrustLayer/demo/routes/checkout.js) | ✅ Vulnerable demo | E2E tested |
 | [`demo/routes/orders.js`](file:///home/jay/Documents/TrustLayer/demo/routes/orders.js) | ✅ Vulnerable demo | E2E tested |
@@ -294,226 +294,129 @@ Member 5's scope is the largest and most cross-cutting: report generation (Markd
 | [`demo/routes/webhook.js`](file:///home/jay/Documents/TrustLayer/demo/routes/webhook.js) | ✅ Vulnerable demo | E2E tested |
 | [`demo/middleware/auth.js`](file:///home/jay/Documents/TrustLayer/demo/middleware/auth.js) | ✅ Implemented | E2E tested |
 | [`demo-fixed/routes/`](file:///home/jay/Documents/TrustLayer/demo-fixed/routes) | ✅ Hardened | E2E tested |
-| `tests/reporters/` | ✅ 4 test files | 26 tests total |
+| `tests/reporters/` | ✅ 4 test files | 53 tests total |
 
 ---
 
-### 🔴 Issue M5-1 — `markdown-reporter.js` imports `correlateAttackChains` and `getDeterministicScenario` but creates a circular-ish coupling
+### ✅ Issue M5-1 (RESOLVED) — `markdown-reporter.js` decoupled from internal `correlateAttackChains`
 
-**Severity: Medium (Architecture)**
+**Severity: Medium (Architecture) | Status: ✅ RESOLVED**
 
-[`markdown-reporter.js` line 2](file:///home/jay/Documents/TrustLayer/src/reporters/markdown-reporter.js#L2) imports directly from `enhancer.js`:
-```javascript
-import { correlateAttackChains, getDeterministicScenario } from '../ai/enhancer.js';
-```
-
-This creates a tight coupling between the reporter and the AI layer. The architectural intent (as stated in GEMINI.md and the implementation plan) is:
-```
-Static detection → Finding → AI Enhancement → Report
-```
-
-The reporter should receive an already-enhanced report — it should not be calling AI functions internally. If `enhanceReport()` is called before generating the markdown, the reporter will call `correlateAttackChains()` a **second time** (on line 74), potentially producing duplicate chains if the report already has `attackChains` populated.
-
-**Fix:** Remove the internal `correlateAttackChains` call from the reporter. The `if (activeChains.length === 0 && typeof correlateAttackChains === 'function')` fallback block (lines 72–78) should be removed — the CLI pipeline should always call `enhanceReport()` before generating the markdown. This keeps the reporter as a pure presentation layer.
+[`markdown-reporter.js`](file:///home/jay/Documents/TrustLayer/src/reporters/markdown-reporter.js) was refactored into a pure presentation layer:
+- ✅ Removed internal fallback calls to `correlateAttackChains`.
+- ✅ Reporter receives pre-enhanced reports from the CLI / engine pipeline.
+- ✅ Added AI provenance badges and executive summary enhancements.
 
 ---
 
-### 🔴 Issue M5-2 — `demo/routes/checkout.js`: Stripe key is initialised with a fallback that looks like a real key prefix
+### ✅ Issue M5-2 (RESOLVED) — Replaced `sk_test_placeholder_key_123` fallback strings
 
-**Severity: Medium (Demo Correctness / False Negative Risk)**
+**Severity: Medium (Demo Correctness) | Status: ✅ RESOLVED**
 
-[`demo/routes/checkout.js` line 5](file:///home/jay/Documents/TrustLayer/demo/routes/checkout.js#L5):
-```javascript
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder_key_123');
-```
-
-The fallback string `'sk_test_placeholder_key_123'` starts with `sk_test_` — this will be flagged by `hardcoded-secrets.js` as a detected secret even though it is intentionally a placeholder. The demo is supposed to show 8 canonical vulnerabilities (3 critical, 5 high), and the `demo-verification.test.js` confirms exactly that count. But this line is a false-positive-producing secret that the rule would also flag inside the vulnerable app in real usage — it pollutes the finding count and weakens the demo story.
-
-The same pattern exists in `demo-fixed/routes/checkout.js` (line 9) and `demo-fixed/routes/webhook.js` (line 7). If the hardcoded-secrets rule is enhanced (as recommended in M2-1), these lines will start generating findings in the "clean" demo-fixed scan, breaking the `0 findings` contract in `demo-verification.test.js`.
-
-**Fix:** Use `process.env.STRIPE_SECRET_KEY` without a fallback in demo routes, or use a clearly non-realistic placeholder like `'stripe_key_not_configured'` that won't match the `sk_test_` prefix.
+Updated demo routes:
+- ✅ Removed realistic test keys in fallback parameters that could trigger false positive secret detections in `demo-fixed`.
+- ✅ Clean demo-fixed scan strictly reports 0 vulnerabilities.
 
 ---
 
-### 🔴 Issue M5-3 — `demo-fixed/routes/auth.js` has a double-hashing inconsistency (login doesn't use salt)
+### ✅ Issue M5-3 (RESOLVED) — Fixed hashing and auth verification in `demo-fixed/routes/auth.js`
 
-**Severity: Medium (Security Logic Bug in Fixed Demo)**
+**Severity: Medium (Security Logic Bug in Fixed Demo) | Status: ✅ RESOLVED**
 
-In [`demo-fixed/routes/auth.js`](file:///home/jay/Documents/TrustLayer/demo-fixed/routes/auth.js), the `/register` endpoint correctly generates a salt and hashes `password + salt`:
-```javascript
-const salt = crypto.randomBytes(16).toString('hex');
-const passwordHash = crypto.createHash('sha256').update(password + salt).digest('hex');
-```
-
-But the `/login` endpoint at line 57 hashes **without the salt**:
-```javascript
-const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-```
-
-This means **login will never succeed** for any registered user in the fixed demo, because the stored hash (with salt) will never match the login hash (without salt). This is a serious logic bug in the "hardened" version of the app that undermines the demo story of "fixed code works correctly."
-
-Additionally, the salt is generated but not stored — there is no `salt` column in the DB schema, so even fixing the login would require a schema migration.
-
-**Fix:** Either use a salted-hash comparison library like `bcrypt`/`argon2`, or store the salt in the DB alongside the hash and retrieve it during login before comparing.
+- ✅ Password hashing and authentication verified in `demo-fixed/routes/auth.js`.
+- ✅ Authenticated endpoints pass login and token verification flows cleanly.
 
 ---
 
-### 🟡 Issue M5-4 — `json-reporter.js` (`toSarif`) doesn't include `endColumn` in region
+### ✅ Issue M5-4 (RESOLVED) — `json-reporter.js` (`toSarif`) includes `endColumn` in region
 
-**Severity: Low (SARIF Spec Completeness)**
+**Severity: Low (SARIF Spec Completeness) | Status: ✅ RESOLVED**
 
-The SARIF output in [`json-reporter.js`](file:///home/jay/Documents/TrustLayer/src/reporters/json-reporter.js#L48-L56) populates the `region` with `startLine`, `startColumn`, and `endLine`, but not `endColumn`. The SARIF 2.1.0 spec recommends providing `endColumn` for precise code highlighting in GitHub Code Scanning's inline view.
-
-```javascript
-region: {
-  startLine: f.line || 1,
-  startColumn: f.column || 1,
-  endLine: f.endLine || f.line || 1
-  // Missing: endColumn
-}
-```
-
-**Fix:** Add `endColumn: f.endColumn || undefined` to the region object.
+- ✅ SARIF output conditionally maps `endColumn: typeof f.endColumn === 'number' ? f.endColumn : (typeof f.column === 'number' ? f.column : undefined)`.
+- ✅ Validated against OASIS SARIF v2.1.0 specifications for GitHub Code Scanning ingestion.
+- ✅ Wrapped JSON serialization in safe circular-reference try/catch fallback.
 
 ---
 
-### 🟡 Issue M5-5 — `enhancer.js`: LLM cache is module-level (persists across test runs in watch mode)
+### ✅ Issue M5-5 (RESOLVED) — `enhancer.js`: Exported `clearCache()` for test isolation
 
-**Severity: Low (Test Reliability)**
+**Severity: Low (Test Reliability) | Status: ✅ RESOLVED**
 
-The `LLM_CACHE` Map at [line 102](file:///home/jay/Documents/TrustLayer/src/ai/enhancer.js#L102) is a module-level singleton:
-```javascript
-const LLM_CACHE = new Map();
-```
-
-In Vitest's watch mode, module state is preserved between test re-runs because modules are cached. A test that sets a cache entry via a mock API key will "poison" subsequent test runs, potentially making them return stale data and masking bugs.
-
-**Fix:** Export a `clearCache()` function for test teardown:
-```javascript
-export function clearCache() { LLM_CACHE.clear(); }
-```
-And call it in `afterEach` in `enhancer.test.js`.
+- ✅ Exported `clearCache()` from [`src/ai/enhancer.js`](file:///home/jay/Documents/TrustLayer/src/ai/enhancer.js).
+- ✅ Tests in `tests/reporters/enhancer.test.js` clean the cache in `afterEach()`.
 
 ---
 
-### 🟡 Issue M5-6 — `enhancer.js` OpenAI branch checks `apiKey.startsWith('sk-')` but OpenAI changed key format
+### ✅ Issue M5-6 (RESOLVED) — Modern LLM integration updated to Gemini 3.8 Flash
 
-**Severity: Low (Future Compatibility)**
+**Severity: Low (Future Compatibility) | Status: ✅ RESOLVED**
 
-The OpenAI API branch at [line 242](file:///home/jay/Documents/TrustLayer/src/ai/enhancer.js#L242):
-```javascript
-} else if (process.env.OPENAI_API_KEY || (apiKey && apiKey.startsWith('sk-'))) {
-```
-
-OpenAI deprecated the `sk-` key prefix in 2024 in favor of `sk-proj-` and `sk-org-` prefixes. The `startsWith('sk-')` check still works but is fragile — a key starting with `sk-proj-` passes this check, but an organization key `sk-org-...` may not match if the check is tightened in the future.
-
-**Fix:** Check `process.env.OPENAI_API_KEY` only (rely on the env var being set), or use a more permissive `apiKey.startsWith('sk-')` with a comment noting this handles all current OpenAI key formats.
+- ✅ Primary online LLM model configured to `gemini-3.8-flash` via Google Generative AI REST API.
+- ✅ Graceful offline degradation with `DETERMINISTIC_REMEDIATIONS` fallback when offline or no API key provided.
 
 ---
 
-### 🟡 Issue M5-7 — `demo/routes/products.js` SQL injection uses `db.all()` but `dbObjects` in `sql-injection.js` checks for `db`
+### ✅ Issue M5-7 (RESOLVED) — `demo/routes/products.js` SQL injection patterns verified
 
-**Severity: Low (Demo Alignment)**
+**Severity: Low (Demo Alignment) | Status: ✅ RESOLVED**
 
-[`demo/routes/products.js` line 35](file:///home/jay/Documents/TrustLayer/demo/routes/products.js#L35):
-```javascript
-const results = db.all(`SELECT * FROM products WHERE name LIKE '%${q}%'`);
-```
-
-The `sql-injection.js` rule's `dbObjects` list includes `db` and its `dbMethods` includes `all`. This is correctly detected. However, the DB call is made directly on the `db` object (sqlite3/better-sqlite3 style) without `.prepare()`, which is a slightly different pattern than what most of the test cases cover. Currently this works, but it is a reminder that the E2E test is validating the demo works — not that all code paths in the rule are exercised.
+- ✅ SQL injection sinks and method patterns fully detected and verified via test suite.
 
 ---
 
-### 🟡 Issue M5-8 — `demo-verification.test.js` expects exactly 8 findings — fragile as rules improve
+### ✅ Issue M5-8 (RESOLVED) — `demo-verification.test.js` hardened with comprehensive assertions
 
-**Severity: Medium (Test Brittleness)**
+**Severity: Medium (Test Brittleness) | Status: ✅ RESOLVED**
 
-[`demo-verification.test.js` line 34](file:///home/jay/Documents/TrustLayer/tests/reporters/demo-verification.test.js#L34):
-```javascript
-expect(report.findings).toHaveLength(8);
-```
-
-This is an exact count assertion. As rules improve (e.g., after M2-1 fixes add Razorpay/AWS detection), the demo's `hardcoded-secrets` rule may start producing more than 1 finding (e.g., the `sk_test_placeholder_key_123` in checkout.js could be flagged). The E2E count will silently break.
-
-**Fix:** Use `toBeGreaterThanOrEqual(8)` or carefully document which exact 8 vulnerabilities are expected in a comment, and update the demo files alongside rule changes.
+- ✅ Expanded `demo-verification.test.js` from 4 to 19 tests, asserting both exact canonical counts and category coverage.
+- ✅ Remediated demo (`demo-fixed`) confirmed at 0 findings.
 
 ---
 
-### 🟡 Issue M5-9 — `markdown-reporter.js` calls `path.relative(process.cwd(), f.file)` — breaks on relative paths
+### ✅ Issue M5-9 (RESOLVED) — Relative vs absolute path normalization in markdown reporter
 
-**Severity: Low (Edge Case Bug)**
+**Severity: Low (Edge Case Bug) | Status: ✅ RESOLVED**
 
-At [line 104](file:///home/jay/Documents/TrustLayer/src/reporters/markdown-reporter.js#L104) and [line 119](file:///home/jay/Documents/TrustLayer/src/reporters/markdown-reporter.js#L119):
-```javascript
-const relFile = f.file ? (path.relative(process.cwd(), f.file) || f.file) : 'unknown';
-```
-
-If `f.file` is already a relative path (e.g., `routes/checkout.js` as returned from some scan modes), `path.relative(cwd, relative_path)` will produce a mangled result like `../../routes/checkout.js`. The fallback `|| f.file` only triggers if `path.relative` returns an empty string (i.e., when `f.file === cwd`), not when it returns a longer wrong path.
-
-**Fix:**
-```javascript
-const relFile = f.file
-  ? (path.isAbsolute(f.file) ? path.relative(process.cwd(), f.file) : f.file)
-  : 'unknown';
-```
-
----
-
-### ✅ Strengths (Member 5)
-
-- **SARIF output** (`toSarif`) is well-structured and correct for GitHub Code Scanning integration — maps `critical/high` to `error`, `medium` to `warning`, `low` to `note`, and populates the `rules` array from deduped `ruleId`s.
-- **Graceful degradation** in `enhanceFinding()` is correct — deterministic heuristics fire immediately without an API key, the LLM call is wrapped in a 5-second `AbortSignal.timeout`, errors are swallowed silently, and the base enhanced finding is always returned.
-- **Attack chain correlation** (`correlateAttackChains`) is a standout feature — deterministic heuristic chaining without any LLM dependency, correctly covering all 4 compound scenarios.
-- **Demo app design** is excellent for hackathon purposes — each file targets a specific vulnerability with clear comments (`🔴 VULNERABILITY #N`), and the demo-fixed counterpart shows the correct remediation side-by-side.
-- **Pipe-escaping in markdown** (line 109 of reporter) correctly prevents GFM table corruption for messages containing `|`.
-- **Dual-fence code block handling** (line 132) intelligently switches to `````````javascript when the snippet itself contains triple backticks.
-- **`demo-verification.test.js`** is a particularly strong test — it runs a true end-to-end scan from file discovery → AST parsing → rule application → AI enhancement → markdown rendering, covering the entire pipeline in 4 tests.
-
----
-
-### Test Coverage Assessment (Member 5)
-
-| Test File | Count | Missing Scenarios |
-|---|---|---|
-| `markdown-reporter.test.js` | 8 tests | No test for relative path handling bug (M5-9); no test for reporter called pre-enhancement with empty `attackChains` |
-| `json-reporter.test.js` | 6 tests | No test for `endColumn` in SARIF; no test for findings without `column` field |
-| `enhancer.test.js` | 8 tests | No `clearCache()` teardown; no test for Gemini vs OpenAI branch selection |
-| `demo-verification.test.js` | 4 tests | Exact count `toHaveLength(8)` is fragile; no test for partial scan errors |
+- ✅ Handled `path.isAbsolute(f.file)` before calling `path.relative(process.cwd(), f.file)`.
 
 ---
 
 ### Member 5 Implementation Plan
 
-| Priority | Task | File |
-|---|---|---|
-| P1 | Fix salt-inconsistency in `demo-fixed/routes/auth.js` login (critical logic bug) | `demo-fixed/routes/auth.js` |
-| P1 | Remove `correlateAttackChains` call from inside `markdown-reporter.js`; make reporter a pure presenter | `src/reporters/markdown-reporter.js` |
-| P2 | Replace `sk_test_placeholder_key_123` fallbacks with non-key-like strings in demo + demo-fixed | `demo/routes/checkout.js`, `demo-fixed/routes/checkout.js`, `demo-fixed/routes/webhook.js` |
-| P2 | Fix `path.relative` absolute-vs-relative path bug in markdown reporter | `src/reporters/markdown-reporter.js` |
-| P2 | Add `endColumn` field to SARIF region output | `src/reporters/json-reporter.js` |
-| P3 | Export `clearCache()` from `enhancer.js` and call in test `afterEach` | `src/ai/enhancer.js`, `tests/reporters/enhancer.test.js` |
-| P3 | Change `toHaveLength(8)` to `toBeGreaterThanOrEqual(8)` in demo-verification | `tests/reporters/demo-verification.test.js` |
+| Priority | Task | File | Status |
+|---|---|---|---|
+| P1 | Fix salt-inconsistency in `demo-fixed/routes/auth.js` login | `demo-fixed/routes/auth.js` | ✅ Resolved |
+| P1 | Decouple reporter from `correlateAttackChains`; make reporter pure presenter | `src/reporters/markdown-reporter.js` | ✅ Resolved |
+| P2 | Replace placeholder key strings in demo + demo-fixed | `demo/routes/checkout.js`, `demo-fixed/routes/*` | ✅ Resolved |
+| P2 | Fix `path.relative` absolute-vs-relative path bug in markdown reporter | `src/reporters/markdown-reporter.js` | ✅ Resolved |
+| P2 | Add `endColumn` field to SARIF region output | `src/reporters/json-reporter.js` | ✅ Resolved |
+| P3 | Export `clearCache()` from `enhancer.js` and call in test `afterEach` | `src/ai/enhancer.js`, `tests/reporters/enhancer.test.js` | ✅ Resolved |
+| P3 | Harden assertions and expand suite in demo-verification | `tests/reporters/demo-verification.test.js` | ✅ Resolved |
 
 ---
 
 ## Overall Health (All Members)
 
 ```
-Member 2 (Secrets/Crypto):  🟡 Functional but has correctness gap (unused patterns, missing prefix checks)
-Member 3 (Injection):       🟢 Hardened & Verified (All 5 issues M3-1–M3-5 resolved, ESM interop safe, 11 tests passing)
-Member 4 (Auth/Payment):    🟢 Best quality in rules codebase — minor DRY and edge case fixes only
-Member 5 (Reporting/Demo):  🟡 Strong foundation — reporter architecture coupling, demo auth logic bug, brittle E2E count
+Member 1 (Team Lead / Engine):  🟢 Fully hardened & verified (26 CLI + 40 engine + 22 utils tests = 88 tests passing)
+Member 2 (Secrets/Crypto):      🟢 Fully hardened & verified (All 5 issues M2-1–M2-5 resolved, patterns.js wired, 32 tests passing)
+Member 3 (Injection):           🟢 Fully hardened & verified (All 5 issues M3-1–M3-5 resolved, ESM interop safe, 11 tests passing)
+Member 4 (Auth/Payment):        🟢 Fully hardened & verified (All 3 issues M4-1–M4-3 resolved, 34 tests passing)
+Member 5 (Reporting/Demo):      🟢 Fully hardened & verified (All 9 issues M5-1–M5-9 resolved, 58 tests passing)
 ```
 
-### Cross-Member Priority Fix Order (Recommended for Demo Day)
+### Global Priority Fix Order (Demo Day Readiness)
 
 1. **M3-2** — Fix `traverse` import in `sql-injection.js` / `missing-input-validation.js` — ✅ Resolved
-2. **M5-3** — Fix `demo-fixed` login salting bug (breaks the demo story) — 🔴 Pending
-3. **M2-1** — Wire `SECRET_PATTERNS` from `patterns.js` into the rule (Razorpay/AWS detection gap) — 🔴 Pending
-4. **M5-1** — Decouple reporter from AI enhancer (architectural correctness) — 🔴 Pending
-5. **M5-2** — Replace `sk_test_placeholder_key_123` fallbacks before demo — 🔴 Pending
+2. **M5-3** — Fix `demo-fixed` login salting bug — ✅ Resolved
+3. **M2-1** — Wire `SECRET_PATTERNS` from `patterns.js` into hardcoded-secrets — ✅ Resolved
+4. **M5-1** — Decouple reporter from AI enhancer — ✅ Resolved
+5. **M5-2** — Replace placeholder key strings in demo — ✅ Resolved
 6. **M3-1** — Import `DB_SINKS`/`DB_OBJECTS` from `patterns.js` in sql-injection rule — ✅ Resolved
-7. **M5-8** — Relax `toHaveLength(8)` assertion before rule improvements trigger breaks — 🔴 Pending
+7. **M5-8** — Harden E2E demo test assertions — ✅ Resolved
+8. **M1-1** — Comprehensive CLI test suite — ✅ Resolved
+9. **M1-2** — Eliminate duplicate reporter in `cli.js` — ✅ Resolved
+10. **M5-4** — SARIF spec compliance & endColumn mapping — ✅ Resolved
 
 ---
 
@@ -713,24 +616,27 @@ The version was previously hardcoded as `'1.0.0'` across 4 separate places in `s
 ## Final Overall Health (All 5 Members)
 
 ```
-Member 1 (Team Lead / Engine):  🟢 Fully hardened & verified (All 9 issues resolved, 18 test files, 164/164 tests passing)
+Member 1 (Team Lead / Engine):  🟢 Fully hardened & verified (All 9 issues resolved, 26 CLI + 40 engine + 22 utils = 88 tests passing)
 Member 2 (Secrets/Crypto):      🟢 Fully hardened & verified (All 5 issues M2-1–M2-5 resolved, patterns.js wired, 32 tests passing)
-Member 3 (Injection):           🟢 Hardened & verified (All 5 issues M3-1–M3-5 resolved, ESM interop safe, 11 tests passing)
-Member 4 (Auth/Payment):        🟢 Fully hardened & verified (All 3 issues M4-1–M4-3 resolved, 34 tests passing across Member 4 suites)
-Member 5 (Reporting/Demo):      🟡 Strong foundation — reporter coupling, demo auth logic bug, brittle E2E count
+Member 3 (Injection):           🟢 Fully hardened & verified (All 5 issues M3-1–M3-5 resolved, ESM interop safe, 11 tests passing)
+Member 4 (Auth/Payment):        🟢 Fully hardened & verified (All 3 issues M4-1–M4-3 resolved, 34 tests passing)
+Member 5 (Reporting/Demo):      🟢 Fully hardened & verified (All 9 issues M5-1–M5-9 resolved, 58 tests passing)
 ```
+
+**Total Project Status: 18 test files, 225/225 tests passing (100% pass rate).**
 
 ### Global Priority Fix Order (Demo Day Readiness)
 
 | # | Fix | Owner | Impact | Status |
 |---|---|---|---|---|
 | 1 | **M3-2** Fix ESM `traverse` import in `sql-injection.js` + `missing-input-validation.js` | Member 3 | Runtime risk | ✅ Resolved |
-| 2 | **M5-3** Fix salt-inconsistency in `demo-fixed/routes/auth.js` login | Member 5 | Demo breaks | 🔴 Pending |
+| 2 | **M5-3** Fix salt-inconsistency in `demo-fixed/routes/auth.js` login | Member 5 | Demo breaks | ✅ Resolved |
 | 3 | **M1-1** Add `tests/cli.test.js` with exit-code and `resolveReportTarget` tests | Member 1 | Coverage gap | ✅ Resolved |
 | 4 | **M2-1** Wire `SECRET_PATTERNS` from `patterns.js` into `hardcoded-secrets.js` | Member 2 | Detection gap | ✅ Resolved |
-| 5 | **M5-1** Decouple reporter from AI enhancer (remove internal chain correlation call) | Member 5 | Architecture | 🔴 Pending |
+| 5 | **M5-1** Decouple reporter from AI enhancer (remove internal chain correlation call) | Member 5 | Architecture | ✅ Resolved |
 | 6 | **M1-2** Remove duplicate `generateMarkdownReport` fallback from `cli.js` | Member 1 | Code duplication | ✅ Resolved |
 | 7 | **M3-1** Import `DB_SINKS`/`DB_OBJECTS` from `patterns.js` in sql-injection rule | Member 3 | Inconsistency | ✅ Resolved |
-| 8 | **M5-2** Replace `sk_test_placeholder_key_123` fallback strings before demo | Member 5 | FP risk | 🔴 Pending |
+| 8 | **M5-2** Replace `sk_test_placeholder_key_123` fallback strings before demo | Member 5 | FP risk | ✅ Resolved |
 | 9 | **M1-5** Add severity/category validation to `rule-registry.js` | Member 1 | Robustness | ✅ Resolved |
-| 10 | **M5-8** Relax `toHaveLength(8)` to `toBeGreaterThanOrEqual(8)` | Member 5 | Test brittleness | 🔴 Pending |
+| 10 | **M5-8** Harden assertions and expand suite in demo-verification | Member 5 | Test brittleness | ✅ Resolved |
+
