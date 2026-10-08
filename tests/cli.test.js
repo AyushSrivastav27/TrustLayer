@@ -240,6 +240,27 @@ describe('CLI: Subprocess execution and exit codes', () => {
     expect(res.stderr + res.stdout).toContain('Warning: Passing API keys via command-line arguments');
     expect(res.stdout).toContain('AI Mode: 🌐 ONLINE');
   }, 15000);
+
+  it('prints detailed remediation and exploit preview in terminal with -v/--verbose', async () => {
+    const res = await runCli(['scan', 'demo', '-v', '--ai', '--no-report', '--no-banner', '--fail-on', 'none']);
+    expect(res.code).toBe(0);
+    expect(res.stdout).toContain('Fix:');
+    expect(res.stdout).toContain('Exploit:');
+  }, 15000);
+
+  it('exports valid SARIF document when -f sarif is specified', async () => {
+    const sarifPath = path.join(tempDir, 'audit.sarif');
+    const res = await runCli(['scan', 'demo-fixed', '-o', sarifPath, '-f', 'sarif', '--no-banner']);
+    expect(res.code).toBe(0);
+
+    const exists = await fs.stat(sarifPath).then(() => true).catch(() => false);
+    expect(exists).toBe(true);
+
+    const content = JSON.parse(await fs.readFile(sarifPath, 'utf-8'));
+    expect(content.version).toBe('2.1.0');
+    expect(content.runs[0].tool.driver.name).toBe('TrustLayer');
+  }, 15000);
 });
+
 
 

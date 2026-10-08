@@ -11,6 +11,7 @@ import { execFileSync } from 'node:child_process';
 import dotenv from 'dotenv';
 import { scan, SCANNER_VERSION } from './engine/scanner.js';
 import { generateMarkdownReport } from './reporters/markdown-reporter.js';
+import { generateJsonReport, toSarif } from './reporters/json-reporter.js';
 
 // Auto-load .env from current directory at startup
 dotenv.config();
@@ -33,7 +34,7 @@ const SEVERITY_ICONS = {
   low: '🔵'
 };
 
-const SUPPORTED_FORMATS = ['markdown', 'md', 'json'];
+const SUPPORTED_FORMATS = ['markdown', 'md', 'json', 'sarif'];
 
 function printBanner() {
   console.log(chalk.cyan.bold(ANSI_SHADOW_BANNER));
@@ -53,7 +54,9 @@ export function resolveReportTarget(outputOption, formatOption) {
   let format = (formatOption || 'markdown').toLowerCase();
   if (format === 'md') format = 'markdown';
 
-  const defaultFileName = format === 'json' ? 'security-report.json' : 'SECURITY-REPORT.md';
+  let defaultFileName = 'SECURITY-REPORT.md';
+  if (format === 'json') defaultFileName = 'security-report.json';
+  if (format === 'sarif') defaultFileName = 'security-report.sarif';
 
   if (!outputOption || typeof outputOption !== 'string') {
     return {
@@ -67,10 +70,14 @@ export function resolveReportTarget(outputOption, formatOption) {
 
   if (lower.endsWith('.json')) {
     format = 'json';
+  } else if (lower.endsWith('.sarif')) {
+    format = 'sarif';
   } else if (lower.endsWith('.md') || lower.endsWith('.markdown')) {
     format = 'markdown';
   } else {
-    rawPath = format === 'json' ? `${rawPath}.json` : `${rawPath}.md`;
+    if (format === 'json') rawPath = `${rawPath}.json`;
+    else if (format === 'sarif') rawPath = `${rawPath}.sarif`;
+    else rawPath = `${rawPath}.md`;
   }
 
   return {
@@ -85,12 +92,14 @@ Examples:
   $ trustlayer scan ./demo                   Scan a specific project directory
   $ trustlayer scan --ai                     Enhance scan with AI attack chains & exploit scenarios
   $ trustlayer scan --ai --api-key <key>     Run online AI analysis with provided key (Gemini / OpenAI)
+  $ trustlayer scan ./demo -v                Show verbose remediation code snippets in terminal
   $ trustlayer scan ./routes/checkout.js     Scan a single target file
   $ trustlayer scan --staged                 Scan only files staged in git index (pre-commit mode)
   $ trustlayer scan -s critical,high         Filter findings to critical and high only
   $ trustlayer scan -c payment,auth          Filter findings to payment and auth categories
   $ trustlayer scan --fail-on critical       Exit code 1 triggered only on critical issues
   $ trustlayer scan ./demo -o audit -f json  Export audit results to JSON (audit.json)
+  $ trustlayer scan ./demo -o audit -f sarif Export audit results to SARIF for GitHub Code Scanning
   $ trustlayer scan ./demo -o report         Save report as report.md
   $ trustlayer scan --no-report              Print terminal results without saving a file
   $ trustlayer scan --ignore "**/dist/**"    Scan with custom glob ignore patterns
@@ -106,14 +115,15 @@ program
   .command('scan', { isDefault: true })
   .description('Scan target directory or file for security vulnerabilities (default: current directory)')
   .argument('[target]', 'Target directory or file path to scan', '.')
-  .option('-o, --output [file]', 'Output report path (auto-appends .md or .json, defaults to SECURITY-REPORT.md)')
-  .option('-f, --format <format>', 'Report format: markdown or json', 'markdown')
+  .option('-o, --output [file]', 'Output report path (auto-appends .md, .json, or .sarif, defaults to SECURITY-REPORT.md)')
+  .option('-f, --format <format>', 'Report format: markdown, json, or sarif', 'markdown')
   .option('-r, --rules-dir <path>', 'Custom directory to load security rules from')
   .option('-s, --severity <levels>', 'Filter findings by severity (comma-separated: critical, high, medium, low)')
   .option('-c, --category <categories>', 'Filter findings by category (comma-separated: secrets, injection, payment, auth)')
   .option('--fail-on <level>', 'Minimum severity level to trigger exit code 1 (critical, high, medium, low, none)', 'high')
   .option('--ai', 'Enable AI-powered exploit scenario generation and attack chain correlation')
   .option('--api-key <key>', 'API key for online AI analysis (Google Gemini or OpenAI)')
+  .option('-v, --verbose', 'Display exploit scenarios and remediation code snippets in terminal output')
   .option('--staged', 'Scan only files staged in git index (pre-commit mode)')
   .option('--ignore <patterns...>', 'Additional glob patterns to ignore')
   .option('--no-report', 'Do not write any report file to disk (console output only)')
@@ -179,7 +189,7 @@ program
 
     const normalizedFormat = (options.format || 'markdown').trim().toLowerCase();
     if (!SUPPORTED_FORMATS.includes(normalizedFormat)) {
-      console.error(chalk.red(`\n ❌ Error: Unsupported format "${options.format}". Allowed values: markdown, json.\n`));
+      console.error(chalk.red(`\n ❌ Error: Unsupported format "${options.format}". Allowed values: markdown, json, sarif.\n`));
       process.exit(2);
     }
 
@@ -255,6 +265,11 @@ program
         } finally {
           aiSpinner.stop();
         }
+
+        // Notify if user requested online with key, but API fell back to offline
+        if (apiKey && report.aiMode === 'offline') {
+          console.log(chalk.yellow(' ℹ️  Cloud AI API was unreachable or unauthenticated. Fell back to Deterministic Offline Engine.\n'));
+        }
       }
 
       const { summary, findings } = report;
@@ -285,6 +300,21 @@ program
           }
 
           console.log(` ${icon} ${colorFn(sevLabel)} ${chalk.white.bold(title)} ${provenanceTag}${chalk.gray(loc)}`);
+
+          if (options.verbose) {
+            if (finding.codeSnippet) {
+              console.log(chalk.gray(`    Snippet: ${finding.codeSnippet.trim()}`));
+            }
+            if (finding.aiExploitScenario) {
+              const firstLineScenario = finding.aiExploitScenario.split('\n')[0] || finding.aiExploitScenario;
+              console.log(chalk.hex('#FFB86C')(`    🎯 Exploit: ${firstLineScenario}`));
+            }
+            if (finding.remediation) {
+              const firstLineRemediation = finding.remediation.split('\n')[0] || finding.remediation;
+              console.log(chalk.green(`    🛠️  Fix: ${firstLineRemediation}`));
+            }
+            console.log('');
+          }
         }
 
         console.log(chalk.gray('\n ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
@@ -323,7 +353,9 @@ program
 
         let reportContent = '';
         if (format === 'json') {
-          reportContent = JSON.stringify(report, null, 2);
+          reportContent = generateJsonReport(report);
+        } else if (format === 'sarif') {
+          reportContent = JSON.stringify(toSarif(report), null, 2);
         } else {
           reportContent = generateMarkdownReport(report);
         }

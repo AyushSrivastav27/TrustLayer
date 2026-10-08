@@ -161,11 +161,10 @@ export function generateMarkdownReport(report) {
 
     if (f.remediation) {
       md += `#### 🛠️ Recommended Remediation\n`;
-      if (typeof f.remediation === 'string' && f.remediation.trim().startsWith('```')) {
+      if (typeof f.remediation === 'string' && f.remediation.includes('```')) {
         md += `${f.remediation}\n\n`;
       } else {
-        const fence = typeof f.remediation === 'string' && f.remediation.includes('```') ? '````' : '```';
-        md += `${fence}javascript\n${f.remediation}\n${fence}\n\n`;
+        md += `\`\`\`javascript\n${f.remediation}\n\`\`\`\n\n`;
       }
     }
 

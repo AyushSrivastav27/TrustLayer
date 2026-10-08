@@ -11,6 +11,7 @@
 
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
+import path from 'node:path';
 
 export const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 export const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
@@ -98,8 +99,77 @@ const DETERMINISTIC_SCENARIOS = {
     '3. The attacker predicts the next password reset token in advance, resetting the administrator password and taking over the account.'
 };
 
+/**
+ * Deterministic, production-ready secure code remediations per rule for offline and fallback modes.
+ */
+const DETERMINISTIC_REMEDIATIONS = {
+  'payment/payment-amount-tampering':
+    '// 1. Never accept price or amount from client request payload.\n' +
+    '// 2. Query price strictly from verified server-side database:\n' +
+    'const product = await db.getProduct(req.body.productId);\n' +
+    'const totalAmount = product.price * (req.body.quantity || 1);\n' +
+    'const paymentIntent = await stripe.paymentIntents.create({\n' +
+    '  amount: totalAmount,\n' +
+    '  currency: "usd"\n' +
+    '});',
+
+  'payment/missing-webhook-verification':
+    '// Cryptographically verify incoming webhook signature before processing:\n' +
+    'const sig = req.headers["stripe-signature"];\n' +
+    'let event;\n' +
+    'try {\n' +
+    '  event = stripe.webhooks.constructEvent(req.rawBody, sig, process.env.STRIPE_WEBHOOK_SECRET);\n' +
+    '} catch (err) {\n' +
+    '  return res.status(400).send(`Webhook signature verification failed: ${err.message}`);\n' +
+    '}\n' +
+    'if (event.type === "payment_intent.succeeded") {\n' +
+    '  await fulfillOrder(event.data.object);\n' +
+    '}',
+
+  'secrets/hardcoded-secrets':
+    '// Never store secrets or API keys in source code.\n' +
+    '// Load securely from environment variables at runtime:\n' +
+    'const JWT_SECRET = process.env.JWT_SECRET;\n' +
+    'if (!JWT_SECRET) {\n' +
+    '  throw new Error("FATAL: JWT_SECRET environment variable is not defined");\n' +
+    '}',
+
+  'auth/missing-auth-middleware':
+    '// Protect sensitive route handlers by mounting authentication middleware:\n' +
+    'import { requireAuth } from "../middleware/auth.js";\n\n' +
+    '// Mount requireAuth before handler execution\n' +
+    'router.get("/orders/:id", requireAuth, async (req, res) => {\n' +
+    '  const order = await db.getOrder(req.params.id, req.user.id);\n' +
+    '  res.json(order);\n' +
+    '});',
+
+  'injection/sql-injection':
+    '// Use parameterized queries or prepared statements to prevent SQL injection:\n' +
+    'const query = "SELECT * FROM products WHERE category = ? AND in_stock = ?";\n' +
+    'const results = await db.all(query, [req.query.category, req.query.inStock]);',
+
+  'injection/missing-input-validation':
+    '// Validate request parameters using schema validation (e.g. Zod or Joi):\n' +
+    'import { z } from "zod";\n\n' +
+    'const checkoutSchema = z.object({\n' +
+    '  productId: z.string().uuid(),\n' +
+    '  quantity: z.number().int().positive()\n' +
+    '});\n' +
+    'const validated = checkoutSchema.parse(req.body);',
+
+  'crypto/weak-crypto':
+    '// Use cryptographically secure pseudo-random numbers (CSPRNG) and modern password hashing:\n' +
+    'import crypto from "node:crypto";\n\n' +
+    'const secureToken = crypto.randomBytes(32).toString("hex");\n' +
+    'const passwordHash = crypto.scryptSync(password, salt, 64).toString("hex");'
+};
+
 export function getDeterministicScenario(ruleId) {
   return DETERMINISTIC_SCENARIOS[ruleId] || null;
+}
+
+export function getDeterministicRemediation(ruleId) {
+  return DETERMINISTIC_REMEDIATIONS[ruleId] || null;
 }
 
 /**
@@ -125,8 +195,9 @@ export function clearCache() {
 async function extractSurroundingCode(file, line, windowSize = 5) {
   if (!file || typeof line !== 'number' || line < 1) return null;
   try {
-    if (!fsSync.existsSync(file)) return null;
-    const content = await fs.readFile(file, 'utf-8');
+    const resolvedFile = path.isAbsolute(file) ? file : path.resolve(process.cwd(), file);
+    if (!fsSync.existsSync(resolvedFile)) return null;
+    const content = await fs.readFile(resolvedFile, 'utf-8');
     const lines = content.split(/\r?\n/);
     const start = Math.max(0, line - 1 - windowSize);
     const end = Math.min(lines.length, line + windowSize);
@@ -144,6 +215,27 @@ async function extractSurroundingCode(file, line, windowSize = 5) {
 }
 
 /**
+ * Safely parses a JSON string, stripping trailing commas if necessary.
+ *
+ * @param {string} str
+ * @returns {Object|null}
+ */
+function tryParseJson(str) {
+  if (!str || typeof str !== 'string') return null;
+  try {
+    return JSON.parse(str);
+  } catch {}
+
+  // Strip trailing commas before closing braces/brackets
+  try {
+    const sanitized = str.replace(/,\s*([}\]])/g, '$1');
+    return JSON.parse(sanitized);
+  } catch {}
+
+  return null;
+}
+
+/**
  * Extracts and parses a JSON object from raw LLM output text.
  * Handles markdown fences (```json ... ```) or embedded JSON brackets.
  *
@@ -155,25 +247,22 @@ export function extractJsonFromResponse(rawText) {
   const trimmed = rawText.trim();
 
   // 1. Direct JSON parse
-  try {
-    return JSON.parse(trimmed);
-  } catch {}
+  const direct = tryParseJson(trimmed);
+  if (direct) return direct;
 
   // 2. Extract from markdown code fence
   const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (fenceMatch && fenceMatch[1]) {
-    try {
-      return JSON.parse(fenceMatch[1].trim());
-    } catch {}
+    const fromFence = tryParseJson(fenceMatch[1].trim());
+    if (fromFence) return fromFence;
   }
 
   // 3. Extract substring between first '{' and last '}'
   const firstBrace = trimmed.indexOf('{');
   const lastBrace = trimmed.lastIndexOf('}');
   if (firstBrace !== -1 && lastBrace > firstBrace) {
-    try {
-      return JSON.parse(trimmed.slice(firstBrace, lastBrace + 1));
-    } catch {}
+    const fromBraces = tryParseJson(trimmed.slice(firstBrace, lastBrace + 1));
+    if (fromBraces) return fromBraces;
   }
 
   return null;
@@ -267,16 +356,18 @@ export async function enhanceFinding(finding, codeContextOrOptions = {}, options
   const snippet = contextSnippet.slice(0, 3000);
   const defaultScenario = DETERMINISTIC_SCENARIOS[finding.ruleId] ||
     `An attacker targets "${finding.ruleId}" by injecting malformed input into the unvalidated handler.`;
+  const defaultRemediation = DETERMINISTIC_REMEDIATIONS[finding.ruleId] || finding.remediation || '';
 
   const apiKey = opts.apiKey || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
   const timeoutMs = opts.timeout || 3000;
 
-  // Base enhanced finding with deterministic offline values
+  // Base enhanced finding with deterministic offline values (including full code remediation)
   const baseEnhanced = {
     ...finding,
     aiExplanation: finding.explanation || finding.message || '',
     aiExploitScenario: defaultScenario,
-    aiRemediation: finding.remediation || '',
+    aiRemediation: defaultRemediation,
+    remediation: finding.remediation || defaultRemediation,
     aiConfidence: finding.confidence || 'high',
     confidence: finding.confidence || 'high',
     aiMode: 'offline',
@@ -342,8 +433,8 @@ export async function enhanceFinding(finding, codeContextOrOptions = {}, options
             explanation: parsed.businessImpact || text.slice(0, 500),
             aiExplanation: parsed.businessImpact || text.slice(0, 500),
             aiExploitScenario: parsed.exploitScenario || defaultScenario,
-            aiRemediation: parsed.remediation || finding.remediation || '',
-            remediation: parsed.remediation || finding.remediation || '',
+            aiRemediation: parsed.remediation || defaultRemediation,
+            remediation: parsed.remediation || defaultRemediation,
             aiMode: 'online',
             aiEngine: `Google Gemini (${model})`
           };
@@ -382,8 +473,8 @@ export async function enhanceFinding(finding, codeContextOrOptions = {}, options
             explanation: parsed.businessImpact || text.slice(0, 500),
             aiExplanation: parsed.businessImpact || text.slice(0, 500),
             aiExploitScenario: parsed.exploitScenario || defaultScenario,
-            aiRemediation: parsed.remediation || finding.remediation || '',
-            remediation: parsed.remediation || finding.remediation || '',
+            aiRemediation: parsed.remediation || defaultRemediation,
+            remediation: parsed.remediation || defaultRemediation,
             aiMode: 'online',
             aiEngine: `OpenAI (${model})`
           };
@@ -440,10 +531,13 @@ export default {
   correlateAttackChains,
   generateAttackChains,
   getDeterministicScenario,
+  getDeterministicRemediation,
   enhanceFinding,
   enhanceReport,
   clearCache,
   extractJsonFromResponse,
   DEFAULT_GEMINI_MODEL,
-  DEFAULT_OPENAI_MODEL
+  DEFAULT_OPENAI_MODEL,
+  DETERMINISTIC_SCENARIOS,
+  DETERMINISTIC_REMEDIATIONS
 };

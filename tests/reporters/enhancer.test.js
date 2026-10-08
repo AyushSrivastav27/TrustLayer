@@ -5,7 +5,8 @@ import {
   enhanceReport,
   extractJsonFromResponse,
   clearCache,
-  DEFAULT_GEMINI_MODEL
+  DEFAULT_GEMINI_MODEL,
+  getDeterministicRemediation
 } from '../../src/ai/enhancer.js';
 
 describe('AI Enhancer Layer: correlateAttackChains & enhanceReport', () => {
@@ -193,4 +194,45 @@ describe('AI Enhancer Layer: correlateAttackChains & enhanceReport', () => {
     expect(enhanced.aiExplanation).toBe(mockJson.businessImpact);
     expect(enhanced.aiRemediation).toBe(mockJson.remediation);
   });
+
+  it('provides deterministic remediation code for all canonical vulnerability rules', () => {
+    const rules = [
+      'payment/payment-amount-tampering',
+      'payment/missing-webhook-verification',
+      'secrets/hardcoded-secrets',
+      'auth/missing-auth-middleware',
+      'injection/sql-injection',
+      'injection/missing-input-validation',
+      'crypto/weak-crypto'
+    ];
+
+    for (const ruleId of rules) {
+      const remediation = getDeterministicRemediation(ruleId);
+      expect(remediation).toBeDefined();
+      expect(typeof remediation).toBe('string');
+      expect(remediation.length).toBeGreaterThan(20);
+    }
+  });
+
+  it('handles JSON with trailing commas gracefully in extractJsonFromResponse', () => {
+    const jsonWithTrailing = '{\n  "exploitScenario": "step with comma",\n  "businessImpact": "impact",\n}';
+    const parsed = extractJsonFromResponse(jsonWithTrailing);
+    expect(parsed).toEqual({
+      exploitScenario: 'step with comma',
+      businessImpact: 'impact'
+    });
+  });
+
+  it('enriches offline findings with deterministic remediation code when rule has minimal remediation', async () => {
+    const finding = {
+      ruleId: 'payment/missing-webhook-verification',
+      severity: 'high'
+    };
+
+    const enhanced = await enhanceFinding(finding);
+    expect(enhanced.aiMode).toBe('offline');
+    expect(enhanced.aiRemediation).toContain('constructEvent');
+    expect(enhanced.remediation).toContain('constructEvent');
+  });
 });
+
