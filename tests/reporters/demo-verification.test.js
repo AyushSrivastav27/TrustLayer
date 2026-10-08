@@ -327,4 +327,64 @@ describe('M5-3 Verification: Salted Password Hashing & Login Verification Contra
   });
 });
 
+describe('M5-7 Verification: Products Route SQL Injection Alignment Contradiction Tests', () => {
+  const productsVulnerablePath = path.resolve(process.cwd(), 'demo/routes/products.js');
+  const productsFixedPath = path.resolve(process.cwd(), 'demo-fixed/routes/products.js');
+
+  it('contradiction test: demo/routes/products.js db.all() template literal is reliably detected as SQL injection', () => {
+    const content = fs.readFileSync(productsVulnerablePath, 'utf8');
+    const { ast } = parseSource(content, productsVulnerablePath);
+    const findings = sqlInjection.analyze({
+      filePath: productsVulnerablePath,
+      fileContent: content,
+      ast,
+      lines: content.split('\n')
+    });
+
+    // Contradiction assertion: Vulnerability #3 must be detected on line 35
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ruleId).toBe('injection/sql-injection');
+    expect(findings[0].severity).toBe('critical');
+    expect(findings[0].line).toBe(35);
+    expect(findings[0].message).toContain('template literal');
+    expect(findings[0].codeSnippet).toContain('db.all');
+  });
+
+  it('contradiction test: demo-fixed/routes/products.js parameterized query yields 0 SQL injection findings', () => {
+    const content = fs.readFileSync(productsFixedPath, 'utf8');
+    const { ast } = parseSource(content, productsFixedPath);
+    const findings = sqlInjection.analyze({
+      filePath: productsFixedPath,
+      fileContent: content,
+      ast,
+      lines: content.split('\n')
+    });
+
+    // Contradiction assertion: Secure parameterized statement must produce 0 findings
+    expect(findings).toHaveLength(0);
+  });
+
+  it('worst-case scenario: binary expression string concatenation with db.all() is also detected', () => {
+    const concatenatedSnippet = `
+      router.get('/products/search', (req, res) => {
+        const q = req.query.q;
+        const results = db.all('SELECT * FROM products WHERE name = ' + q);
+        res.json(results);
+      });
+    `;
+    const { ast } = parseSource(concatenatedSnippet, 'virtual-concat-test.js');
+    const findings = sqlInjection.analyze({
+      filePath: 'virtual-concat-test.js',
+      fileContent: concatenatedSnippet,
+      ast,
+      lines: concatenatedSnippet.split('\n')
+    });
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ruleId).toBe('injection/sql-injection');
+    expect(findings[0].message).toContain('string concatenation');
+  });
+});
+
+
 
