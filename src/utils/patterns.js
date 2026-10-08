@@ -6,6 +6,7 @@
 export const HTTP_SOURCES = ['body', 'query', 'params', 'headers', 'cookies'];
 
 // Sensitive payment amount/price keys
+// Note: 'price' is evaluated in numeric contexts by payment rules to distinguish monetary amounts from catalog/Price IDs
 export const AMOUNT_KEYS = [
   'amount',
   'price',
@@ -69,6 +70,14 @@ export const WEBHOOK_VERIFIERS = [
 // Database query sinks for SQL injection detection
 export const DB_SINKS = ['query', 'execute', 'exec', 'run', 'all', 'get'];
 export const DB_OBJECTS = ['db', 'pool', 'connection', 'client', 'knex', 'sequelize', 'prisma'];
+
+// Non-Express receiver objects to prevent false-positive route detections
+export const NON_EXPRESS_OBJECTS = new Set([
+  'db', 'pool', 'connection', 'client', 'knex', 'sequelize', 'prisma',
+  'sqlite', 'stmt', 'statement', 'redis', 'cache',
+  'axios', 'http', 'https', 'fetch', 'fs', 'path', 'url', 'console',
+  'logger', 'log', 'Math', 'JSON', 'Object', 'Array', 'Promise'
+]);
 
 // SQL keyword patterns for string concatenation detection
 export const SQL_KEYWORDS_REGEX = /\b(SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM|DROP\s+TABLE|ALTER\s+TABLE|UNION\s+ALL|UNION\s+SELECT|WHERE)\b/i;

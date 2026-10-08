@@ -216,4 +216,15 @@ describe('Security Patterns - Validation', () => {
     expect(patterns.PUBLIC_ROUTE_PATTERNS.some(r => r.test('/api/products'))).toBe(true);
     expect(patterns.PUBLIC_ROUTE_PATTERNS.some(r => r.test('/api/login'))).toBe(true);
   });
+
+  it('validates NON_EXPRESS_OBJECTS contains common database, client, and utility objects', () => {
+    expect(patterns.NON_EXPRESS_OBJECTS instanceof Set).toBe(true);
+    expect(patterns.NON_EXPRESS_OBJECTS.has('db')).toBe(true);
+    expect(patterns.NON_EXPRESS_OBJECTS.has('pool')).toBe(true);
+    expect(patterns.NON_EXPRESS_OBJECTS.has('axios')).toBe(true);
+    expect(patterns.NON_EXPRESS_OBJECTS.has('console')).toBe(true);
+    expect(patterns.NON_EXPRESS_OBJECTS.has('router')).toBe(false);
+    expect(patterns.NON_EXPRESS_OBJECTS.has('app')).toBe(false);
+  });
 });
+
