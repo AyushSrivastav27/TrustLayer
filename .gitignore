@@ -162,3 +162,9 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# TrustLayer generated reports
+SECURITY-REPORT.md
+security-report.json
+*.sarif
+

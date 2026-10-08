@@ -8,12 +8,17 @@ const DEFAULT_IGNORE = [
   '**/dist/**',
   '**/build/**',
   '**/coverage/**',
+  '**/*.test.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+  '**/*.spec.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
   '**/*.test.js',
-  '**/*.spec.js'
+  '**/*.spec.js',
+  '**/*.d.ts',
+  '**/*.d.mts',
+  '**/*.d.cts'
 ];
 
 /**
- * Discovers scannable JavaScript files in the target directory or path.
+ * Discovers scannable JavaScript and TypeScript files in the target directory or path.
  *
  * @param {string} targetPath - Directory or single file path
  * @param {Object} [options]
@@ -33,7 +38,7 @@ export async function discoverFiles(targetPath, options = {}) {
 
   const ignore = [...DEFAULT_IGNORE, ...(options.ignore || [])];
 
-  const files = await glob('**/*.{js,mjs,cjs}', {
+  const files = await glob('**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}', {
     cwd: resolvedPath,
     absolute: true,
     nodir: true,
