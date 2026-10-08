@@ -201,4 +201,29 @@ describe('CLI: Subprocess execution and exit codes', () => {
     expect(content).toHaveProperty('summary');
     expect(content.summary.totalFindings).toBe(0);
   }, 15000);
+
+  it('exits with code 0 when --fail-on none is used on vulnerable code', async () => {
+    const res = await runCli(['scan', 'demo', '--fail-on', 'none', '--no-report', '--no-banner']);
+    expect(res.code).toBe(0);
+    expect(res.stdout).toContain('Found');
+  }, 15000);
+
+  it('exits with code 2 when an invalid --fail-on value is passed', async () => {
+    const res = await runCli(['scan', 'demo', '--fail-on', 'invalid-level', '--no-banner']);
+    expect(res.code).toBe(2);
+    expect(res.stderr).toContain('Invalid --fail-on level');
+  }, 10000);
+
+  it('filters findings by severity with -s option', async () => {
+    // demo has 0 low findings, so filtering to -s low results in 0 findings and exit code 0
+    const res = await runCli(['scan', 'demo', '-s', 'low', '--no-report', '--no-banner']);
+    expect(res.code).toBe(0);
+    expect(res.stdout).toContain('No security issues found');
+  }, 15000);
+
+  it('filters findings by category with -c option', async () => {
+    const res = await runCli(['scan', 'demo', '-c', 'payment', '--no-report', '--no-banner']);
+    expect(res.stdout).toContain('payment');
+  }, 15000);
 });
+
