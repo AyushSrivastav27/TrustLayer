@@ -1,12 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import * as parser from '@babel/parser';
+import { parseSource } from '../../src/engine/ast-parser.js';
 import sqlInjectionRule from '../../src/rules/sql-injection.js';
 
 function analyzeCode(code) {
-  const ast = parser.parse(code, {
-    sourceType: 'module',
-    plugins: ['jsx']
-  });
+  const { ast } = parseSource(code, 'test.js');
   const context = {
     filePath: 'test.js',
     fileContent: code,
