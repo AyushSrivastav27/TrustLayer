@@ -131,6 +131,26 @@ describe('Engine: scanner', () => {
 
       warnSpy.mockRestore();
     });
+
+    it('executes multiple rules concurrently and flattens all findings', async () => {
+      const asyncRule1 = {
+        id: 'test/async-1',
+        severity: 'high',
+        analyze: async () => [{ line: 1, message: 'Async 1 finding' }]
+      };
+      const asyncRule2 = {
+        id: 'test/async-2',
+        severity: 'medium',
+        analyze: async () => [{ line: 2, message: 'Async 2 finding' }]
+      };
+
+      const findings = await scanFile(sampleFilePath, [asyncRule1, asyncRule2, mockVulnerableRule]);
+      expect(findings).toHaveLength(3);
+      const ruleIds = findings.map(f => f.ruleId);
+      expect(ruleIds).toContain('test/async-1');
+      expect(ruleIds).toContain('test/async-2');
+      expect(ruleIds).toContain('test/vulnerable-keyword');
+    });
   });
 
   describe('scan', () => {

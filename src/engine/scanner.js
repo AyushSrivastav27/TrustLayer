@@ -26,34 +26,32 @@ export async function scanFile(filePath, rules, content = null) {
     lines
   };
 
-  const fileFindings = [];
-
-  for (const rule of rules) {
+  const perRulePromises = rules.map(async (rule) => {
     try {
-      const result = rule.analyze(context);
+      const result = await rule.analyze(context);
       const findings = Array.isArray(result) ? result : [];
 
-      for (const finding of findings) {
-        fileFindings.push({
-          ruleId: finding.ruleId || rule.id,
-          severity: finding.severity || rule.severity,
-          file: finding.file || filePath,
-          line: finding.line,
-          endLine: finding.endLine,
-          column: finding.column,
-          codeSnippet: finding.codeSnippet || (finding.line ? lines[finding.line - 1] || '' : ''),
-          message: finding.message || rule.description,
-          explanation: finding.explanation || rule.defaultExplanation,
-          remediation: finding.remediation || rule.defaultRemediation,
-          confidence: finding.confidence || 'high'
-        });
-      }
+      return findings.map((finding) => ({
+        ruleId: finding.ruleId || rule.id,
+        severity: finding.severity || rule.severity,
+        file: finding.file || filePath,
+        line: finding.line,
+        endLine: finding.endLine,
+        column: finding.column,
+        codeSnippet: finding.codeSnippet || (finding.line ? lines[finding.line - 1] || '' : ''),
+        message: finding.message || rule.description,
+        explanation: finding.explanation || rule.defaultExplanation,
+        remediation: finding.remediation || rule.defaultRemediation,
+        confidence: finding.confidence || 'high'
+      }));
     } catch (err) {
       console.warn(`[TrustLayer] Error executing rule "${rule.id}" on "${filePath}":`, err.message);
+      return [];
     }
-  }
+  });
 
-  return fileFindings;
+  const perRuleFindings = await Promise.all(perRulePromises);
+  return perRuleFindings.flat();
 }
 
 /**
