@@ -1,4 +1,5 @@
-import traverse from '@babel/traverse';
+import _traverse from '@babel/traverse';
+const traverse = _traverse.default || _traverse;
 import * as t from '@babel/types';
 import { getExpressRouteDetails, isReqAccess, extractSnippet } from '../utils/ast-helpers.js';
 
