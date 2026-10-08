@@ -1,6 +1,8 @@
-import traverse from '@babel/traverse';
+import _traverse from '@babel/traverse';
+const traverse = _traverse.default || _traverse;
 import * as t from '@babel/types';
 import { isMethodCall, extractSnippet } from '../utils/ast-helpers.js';
+import { DB_SINKS, DB_OBJECTS } from '../utils/patterns.js';
 
 export default {
   id: 'injection/sql-injection',
@@ -17,14 +19,13 @@ export default {
 
     if (!ast) return findings;
 
-    const dbMethods = ['query', 'run', 'exec', 'all'];
-    const dbObjects = ['db', 'connection', 'pool', 'client'];
 
     traverse(ast, {
       CallExpression(path) {
-        const isDbCall = dbObjects.some(obj => 
-          dbMethods.some(method => isMethodCall(path.node, obj, method))
+        const isDbCall = DB_OBJECTS.some(obj => 
+          DB_SINKS.some(method => isMethodCall(path.node, obj, method))
         );
+
 
         if (isDbCall) {
           const args = path.node.arguments;

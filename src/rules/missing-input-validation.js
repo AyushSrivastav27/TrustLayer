@@ -1,4 +1,5 @@
-import traverse from '@babel/traverse';
+import _traverse from '@babel/traverse';
+const traverse = _traverse.default || _traverse;
 import * as t from '@babel/types';
 import { getExpressRouteDetails, isReqAccess, extractSnippet } from '../utils/ast-helpers.js';
 
@@ -29,13 +30,25 @@ export default {
         let hasValidation = false;
         let inputAccessNode = null;
 
+        const handlerPath = path.get('arguments').find(p => p.node === route.handler);
+        if (!handlerPath) return;
+
         // Traverse inside the handler
-        traverse(route.handler, {
+        handlerPath.traverse({
           MemberExpression(innerPath) {
             if (isReqAccess(innerPath.node)) {
               hasInputAccess = true;
               if (!inputAccessNode) {
                 inputAccessNode = innerPath.node;
+              }
+            }
+          },
+          UnaryExpression(innerPath) {
+            if (innerPath.node.operator === 'typeof') {
+              hasValidation = true;
+            } else if (innerPath.node.operator === '!') {
+              if (t.isMemberExpression(innerPath.node.argument) && isReqAccess(innerPath.node.argument)) {
+                hasValidation = true;
               }
             }
           },
@@ -51,12 +64,12 @@ export default {
               }
             } else if (t.isIdentifier(callee)) {
                const name = callee.name;
-               if (['body', 'query', 'param', 'check'].includes(name)) {
+               if (['body', 'query', 'param', 'check', 'validationResult'].includes(name)) {
                   hasValidation = true;
                }
             }
           }
-        }, path.scope, null, path.parentPath);
+        });
 
         // Also check if any middleware looks like a validator (e.g., validate(schema))
         route.middlewares.forEach(mw => {
@@ -77,7 +90,7 @@ export default {
             column: route.handler.loc.start.column,
             codeSnippet: extractSnippet(lines, inputAccessNode),
             message: 'Route accesses user input (req.body/query/params) but lacks apparent validation.',
-            confidence: 'medium'
+            confidence: 'low'
           });
         }
       }

@@ -1,12 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import * as parser from '@babel/parser';
+import { parseSource } from '../../src/engine/ast-parser.js';
 import sqlInjectionRule from '../../src/rules/sql-injection.js';
 
 function analyzeCode(code) {
-  const ast = parser.parse(code, {
-    sourceType: 'module',
-    plugins: ['jsx']
-  });
+  const { ast } = parseSource(code, 'test.js');
   const context = {
     filePath: 'test.js',
     fileContent: code,
@@ -63,5 +60,29 @@ describe('SQL Injection Rule', () => {
     `;
     const findings = analyzeCode(code);
     expect(findings).toHaveLength(0);
+  });
+
+  it('True Positive: detects template literal with expressions in connection.execute', () => {
+    const code = `
+      const userId = req.body.userId;
+      connection.execute(\`SELECT * FROM users WHERE id = \${userId}\`);
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ruleId).toBe('injection/sql-injection');
+    expect(findings[0].severity).toBe('critical');
+    expect(findings[0].message).toContain('template literal');
+  });
+
+  it('True Positive: detects string concatenation in sequelize.query', () => {
+    const code = `
+      const username = req.body.username;
+      sequelize.query('SELECT * FROM users WHERE username = ' + username);
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ruleId).toBe('injection/sql-injection');
+    expect(findings[0].severity).toBe('critical');
+    expect(findings[0].message).toContain('string concatenation');
   });
 });
