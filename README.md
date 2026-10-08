@@ -1,3 +1,12 @@
+```text
+████████╗██████╗ ██╗   ██╗███████╗████████╗██╗      █████╗ ██╗   ██╗███████╗██████╗ 
+╚══██╔══╝██╔══██╗██║   ██║██╔════╝╚══██╔══╝██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
+   ██║   ██████╔╝██║   ██║███████╗   ██║   ██║     ███████║ ╚████╔╝ █████╗  ██████╔╝
+   ██║   ██╔══██╗██║   ██║╚════██║   ██║   ██║     ██╔══██║  ╚██╔╝  ██╔══╝  ██╔══██╗
+   ██║   ██║  ██║╚██████╔╝███████║   ██║   ███████╗██║  ██║   ██║   ███████╗██║  ██║
+   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
+```
+
 # 🛡️ TrustLayer
 
 > **Deterministic, Framework-Aware Static Security Scanner for Node.js & Express APIs**  
@@ -7,7 +16,31 @@
 [![Test Suite](https://img.shields.io/badge/Vitest-225%20passed-success.svg)](https://vitest.dev/)
 [![Language](https://img.shields.io/badge/Language-Modern%20ESM-yellow.svg)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![License](https://img.shields.io/badge/License-ISC-blue.svg)](LICENSE)
-[![Architecture](https://img.shields.io/badge/Design-Zero--LLM%20Detection%20Core-orange.svg)](#core-architecture)
+[![Architecture](https://img.shields.io/badge/Design-Zero--LLM%20Detection%20Core-orange.svg)](#️-core-architecture--pipeline)
+
+---
+
+## 📑 Table of Contents
+
+- [📌 Executive Summary](#-executive-summary)
+- [✨ Key Capabilities & Differentiators](#-key-capabilities--differentiators)
+- [🏗️ Core Architecture & Pipeline](#️-core-architecture--pipeline)
+- [🚦 Project Status & Implementation Matrix](#-project-status--implementation-matrix)
+- [💻 Quick Start & CLI Usage](#-quick-start--cli-usage)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Running the Scanner](#running-the-scanner)
+  - [CLI Flags & Options Reference](#cli-flags--options-reference)
+  - [AI Mode Configuration (Online vs. Offline)](#ai-mode-configuration-online-vs-offline)
+- [🛡️ Security Rules Portfolio](#️-security-rules-portfolio)
+- [🎬 Hackathon Demonstration & Comparison](#-hackathon-demonstration--comparison)
+- [🧪 Testing & Test Suite Breakdown](#-testing)
+- [📚 Documentation & Audits](#-documentation--audits)
+- [📂 Repository Layout](#-repository-layout)
+- [📐 Rule Specification Contract](#-rule-specification-contract)
+- [👥 Team & Ownership Boundaries](#-team--ownership-boundaries)
+- [🔮 Phase 2 Roadmap & Future Horizons](#-phase-2-roadmap--future-horizons)
+- [📄 License](#-license)
 
 ---
 
@@ -34,7 +67,7 @@ Existing static analysis tools (Semgrep, ESLint-security, Gitleaks, SonarQube) s
 - 🔌 **Dynamic Rule Auto-Discovery**  
   Rules in `src/rules/*.js` are discovered and registered at runtime via native ES module `import()`. No centralized hardcoded rule registry needed.
 - 🤖 **Additive AI Enhancement & Attack Chains**  
-  Vulnerability detection is 100% deterministic. Additive offline heuristics correlate independent findings into multi-stage attack chains; optional LLM integration (Gemini / OpenAI) crafts real-world exploit walkthroughs and remediation diffs.
+  Vulnerability detection is 100% deterministic. Additive offline heuristics correlate independent findings into multi-stage attack chains; optional LLM integration (Gemini 3.8 Flash / OpenAI) crafts real-world exploit walkthroughs and remediation diffs.
 - 📊 **Executive & CI/CD Reporting**  
   Generates clean GitHub Flavored Markdown (GFM) executive summaries, structured JSON, and OASIS SARIF v2.1.0 output for direct GitHub Code Scanning integration.
 - 🪶 **Pure JavaScript Tooling**  
@@ -48,7 +81,7 @@ Existing static analysis tools (Semgrep, ESLint-security, Gitleaks, SonarQube) s
 graph TD
     A["CLI Entrypoint (trustlayer scan)"] --> B["File Discovery (Glob: .js, .mjs, .cjs)"]
     B --> C["Babel AST Parser (@babel/parser)"]
-    D["Rule Registry (Dynamic ESM Loader)"] --> E["Scanner Engine (Intra-Handler Traversal)"]
+    D["Rule Registry (Dynamic ESM Loader)"] --> E["Scanner Engine (Parallel Intra-Handler Traversal)"]
     C --> E
     E --> F["Structured Findings (Rule, File, Line, Code)"]
     F --> G["Optional AI Enhancer & Attack Chain Correlator"]
@@ -106,18 +139,6 @@ npm install
 
 TrustLayer features a full-featured CLI powered by Commander.js:
 
-```text
-████████╗██████╗ ██╗   ██╗███████╗████████╗██╗      █████╗ ██╗   ██╗███████╗██████╗ 
-╚══██╔══╝██╔══██╗██║   ██║██╔════╝╚══██╔══╝██║     ██╔══██╗╚██╗ ██╔╝██╔════╝██╔══██╗
-   ██║   ██████╔╝██║   ██║███████╗   ██║   ██║     ███████║ ╚████╔╝ █████╗  ██████╔╝
-   ██║   ██╔══██╗██║   ██║╚════██║   ██║   ██║     ██╔══██║  ╚██╔╝  ██╔══╝  ██╔══██╗
-   ██║   ██║  ██║╚██████╔╝███████║   ██║   ███████╗██║  ██║   ██║   ███████╗██║  ██║
-   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
-
- 🔍 TrustLayer Static Security Scanner v1.0.0
-    Deterministic AST & Data-Flow Analysis for Node.js/Express
-```
-
 ```bash
 # 1. Scan current directory (generates terminal table & SECURITY-REPORT.md)
 node src/cli.js scan
@@ -151,7 +172,24 @@ node src/cli.js scan ./demo -s critical
 node src/cli.js scan ./demo -c payment
 ```
 
-### AI Mode Configuration (Online vs Offline)
+### CLI Flags & Options Reference
+
+| Flag / Option | Description | Default |
+|---|---|---|
+| `[target]` | Target directory or file to scan | `.` (current directory) |
+| `-o, --output <file>` | Output report path | `SECURITY-REPORT.md` (or `.json` / `.sarif`) |
+| `-f, --format <format>` | Output format: `markdown` (`md`), `json`, or `sarif` | `markdown` |
+| `--ai` | Enable additive AI enhancement layer (works offline or online) | `false` |
+| `--api-key <key>` | Gemini / LLM API key (can also be set via `GEMINI_API_KEY` in `.env`) | None |
+| `-v, --verbose` | Show verbose exploit walk-throughs & remediation diffs in console | `false` |
+| `-s, --severity <level>` | Minimum severity filter: `critical`, `high`, `medium`, `low` | `low` |
+| `-c, --category <cat>` | Filter by category: `payment`, `auth`, `injection`, `secrets` | All |
+| `--fail-on <severity>` | Fail with exit code 1 if findings meet threshold (`critical`, `high`, etc.) | `high` |
+| `--no-report` | Suppress disk report generation (terminal output only) | `false` |
+| `--ignore <glob>` | Custom glob ignore pattern (e.g., `**/fixtures/**`) | Built-in ignores |
+| `--rules <dir>` | Load additional custom rules from a directory | None |
+
+### AI Mode Configuration (Online vs. Offline)
 
 TrustLayer operates with a **Deterministic Detection Core**:
 - **Offline Heuristics (Default)**: Automatically correlates 4 multi-stage attack chains (e.g., Unauthenticated Orders → Client-Controlled Amount Tampering) and provides deterministic code fixes with **zero network requests and zero LLM dependencies**.
@@ -164,6 +202,43 @@ TrustLayer operates with a **Deterministic Detection Core**:
   # Option B: Pass via flag
   node src/cli.js scan ./demo --ai --api-key "AIzaSy..."
   ```
+
+---
+
+## 🛡️ Security Rules Portfolio
+
+TrustLayer ships with 7 deterministic AST rules engineered specifically for Node.js/Express e-commerce architectures:
+
+| Rule ID | Category | Severity | Detection Trigger & Mechanism |
+|---|---|:---:|---|
+| [`payment/payment-amount-tampering`](file:///home/jay/Documents/TrustLayer/src/rules/payment-amount-tampering.js) | `payment` | **Critical** | Traces client input (`req.body.amount`, `req.body.price`) flowing directly into payment SDK calls (`stripe.charges.create`, `stripe.paymentIntents.create`, `razorpay.orders.create`) without server-side catalog price lookup. |
+| [`payment/missing-webhook-verification`](file:///home/jay/Documents/TrustLayer/src/rules/missing-webhook-verification.js) | `payment` | **High** | Flags payment webhook handlers (`/webhook`, `/stripe-webhook`) that lack cryptographic HMAC signature verification (`stripe.webhooks.constructEvent` or `crypto.timingSafeEqual`). |
+| [`auth/missing-auth-middleware`](file:///home/jay/Documents/TrustLayer/src/rules/missing-auth-middleware.js) | `auth` | **High** | Inspects Express routing chains on sensitive routes (`/api/orders`, `/api/admin`, `/api/users`) to detect endpoints omitting authentication middleware guards. |
+| [`secrets/hardcoded-secrets`](file:///home/jay/Documents/TrustLayer/src/rules/hardcoded-secrets.js) | `secrets` | **Critical** | Scans variable declarations and object configs for live API keys (Stripe `sk_live_`, Razorpay `rzp_live_`, AWS `AKIA...`, JWT secrets) using exact prefix matching and Shannon entropy analysis. |
+| [`secrets/weak-crypto`](file:///home/jay/Documents/TrustLayer/src/rules/weak-crypto.js) | `secrets` | **High** | Flags obsolete cryptographic hashing (`md5`, `sha1`), weak legacy ciphers (`des`, `rc4`), and `Math.random()` used in security-sensitive token/session generation contexts. |
+| [`injection/sql-injection`](file:///home/jay/Documents/TrustLayer/src/rules/sql-injection.js) | `injection` | **Critical** | Detects unparameterized SQL queries built via template literals or string concatenation flowing directly into database sinks (`db.query`, `db.run`, `pool.query`, `knex.raw`). |
+| [`injection/missing-input-validation`](file:///home/jay/Documents/TrustLayer/src/rules/missing-input-validation.js) | `injection` | **High** | Flags route handlers accepting client parameters without presence checks, schema validation (`express-validator`, `zod`, `joi`), or type guards. |
+
+---
+
+## 🎬 Hackathon Demonstration & Comparison
+
+To demonstrate TrustLayer's speed, precision, and zero-false-positive design during presentations, run the automated comparison script:
+
+```bash
+npm run demo:compare
+```
+
+### What the Comparison Proves:
+1. **Vulnerable Application (`demo/`)**:
+   - TrustLayer analyzes 8 files in **<15ms**.
+   - Discovers **8 canonical vulnerabilities** across payment, auth, injection, and secret domains.
+   - Correlates compound attack chains (e.g., Unauthenticated Orders + Client-Controlled Price Tampering).
+   - Blocks the deployment gate (**exit code 1**).
+2. **Hardened Reference Application (`demo-fixed/`)**:
+   - Re-scans the remediated codebase.
+   - Produces **0 findings** and **100% clean scan badge**.
+   - Allows CI/CD deployment (**exit code 0**).
 
 ---
 
@@ -219,7 +294,7 @@ Current test status: **225 passing tests (100%)** across 18 test files:
 ```
 TrustLayer/
 ├── docs/                       # Project documentation & team audits
-│   └── audit-report.md         # Comprehensive 5-member codebase audit & implementation plan
+│   └── audit-report.md         # Comprehensive 5-member codebase audit & Phase 2 roadmap
 ├── src/
 │   ├── cli.js                  # CLI entrypoint (Commander.js, formatting & exit codes)
 │   ├── types/                  # Core data contracts & JSDoc specifications
@@ -253,11 +328,12 @@ TrustLayer/
 │   ├── middleware/auth.js      # Middleware stubs
 │   └── routes/                 # 8 canonical vulnerable endpoints (auth, products, checkout, webhook)
 ├── demo-fixed/                 # Hardened reference app demonstrating verified fixes (0 findings)
-├── tests/                      # Automated Vitest test suites (133 tests)
-│   ├── engine/                 # Unit tests for core engine modules (29 tests)
-│   ├── utils/                  # Unit tests for AST helpers & patterns (21 tests)
-│   ├── rules/                  # Rule-specific true positive/negative unit tests (57 tests)
-│   └── reporters/              # Reporters, AI enhancer, and E2E demo tests (26 tests)
+├── tests/                      # Automated Vitest test suites (225 tests across 18 suites)
+│   ├── cli.test.js             # CLI argument, exit-code & format validation (26 tests)
+│   ├── engine/                 # Scanner, parser, discovery, registry, finding (40 tests)
+│   ├── utils/                  # AST helpers & patterns unit tests (22 tests)
+│   ├── rules/                  # Payment, auth, secrets, crypto, injection (79 tests)
+│   └── reporters/              # Markdown, JSON/SARIF, AI enhancer, demo-verification (58 tests)
 ├── AGENTS.md                   # Global directives for AI assistants
 ├── ROLES.md                    # Team member role boundaries & ownership guide
 ├── CONTRIBUTING.md             # Branching protocol and PR guidelines
@@ -305,7 +381,7 @@ export default exampleRule;
 
 ## 👥 Team & Ownership Boundaries
 
-To enable parallel development without merge conflicts, team members work in isolated branches:
+To enable parallel development without merge conflicts, team members worked in isolated branches:
 
 | Member | Focus Area | Branch | Status | Owned Files |
 |---|---|---|:---:|---|
@@ -316,6 +392,22 @@ To enable parallel development without merge conflicts, team members work in iso
 | **Member 5** | Reporters, AI Enhancer, Demo Routes & Fixed App | `feature/demo-reporting` | 🟢 Merged | `src/reporters/*`, `src/ai/*`, `demo/routes/*`, `demo-fixed/*`, tests |
 
 For detailed development guidelines, refer to [ROLES.md](ROLES.md) and [AGENTS.md](AGENTS.md).
+
+---
+
+## 🔮 Phase 2 Roadmap & Future Horizons
+
+> [!NOTE]
+> All core hackathon deliverables (Phases 0 & 1) are complete with 225/225 tests passing. The items below outline the Phase 2 expansion roadmap:
+
+1. **Programmatic Library Export (`src/index.js`)**  
+   Export `scan`, `discoverFiles`, `parseSource`, and reporters directly for programmatic Node.js API and CI script consumption without spawning subprocesses.
+2. **NPM Distribution & Global CLI**  
+   Publish to npm registry (`npx trustlayer scan`) with global cross-platform packaging.
+3. **Repository Config File (`.trustlayerrc.json`)**  
+   Support custom organization rules, team-specific severity threshold overrides, and ignored patterns.
+4. **Extended Rule Sets**  
+   Expand rules for NoSQL injection, JWT `algorithm: 'none'` bypasses, and insecure HTTP payment callback URLs.
 
 ---
 
