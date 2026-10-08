@@ -604,7 +604,7 @@ Member 5 (Reporting/Demo):  🟡 Strong foundation — reporter architecture cou
 
 ## Member 1 (Team Lead) — `src/engine/`, `src/cli.js`, `src/types/`, `src/utils/`, `demo/server.js`, `demo/db/`
 
-**Test Suite Status: ✅ 29/29 engine tests passing + 13/13 utils/patterns tests passing.**
+**Test Suite Status: ✅ 40/40 engine tests + 18/18 CLI tests + 21/21 utils/patterns tests passing (79/79 tests total across Member 1 components).**
 
 Member 1 owns the foundation everything else depends on: the scan pipeline, CLI entry point, AST parsing, rule auto-discovery, file discovery, type contracts, and the shared utility library. This is the highest-risk code in the project — a bug here affects all 7 rules and both reporters simultaneously. The implementation is clean and well-structured, but there are notable gaps in completeness, edge handling, and CLI reliability.
 
@@ -780,16 +780,18 @@ The version was previously hardcoded as `'1.0.0'` across 4 separate places in `s
 
 ### Member 1 Implementation Plan
 
-| Priority | Task | File |
-|---|---|---|
-| P1 | Add `tests/cli.test.js` — test `resolveReportTarget`, exit codes, and `--no-report` flag | `tests/cli.test.js` (new) |
-| P1 | Remove the fallback `generateMarkdownReport` in `cli.js` or make the import failure a hard error | `src/cli.js` |
-| P2 | Add `severity` + `category` contract validation to `rule-registry.js` | `src/engine/rule-registry.js` |
-| P2 | Add non-existent path guard in `file-discovery.js` | `src/engine/file-discovery.js` |
-| P2 | Pre-hash seed passwords in `demo/db/setup.js` with MD5 to match the vulnerable auth flow | `demo/db/setup.js` |
-| P3 | Import version from `package.json` instead of hardcoding `'1.0.0'` in scanner + CLI | `src/engine/scanner.js`, `src/cli.js` |
-| P3 | Either delete `createFinding()` or wire it into `scanner.js`'s finding normalization | `src/types/finding.js`, `src/engine/scanner.js` |
-| P3 | Add a `tests/types/finding.test.js` for the `createFinding` factory | `tests/types/finding.test.js` (new) |
+| Priority | Task | File | Status |
+|---|---|---|---|
+| P1 | **M1-1** Add `tests/cli.test.js` — test `resolveReportTarget`, exit codes, and `--no-report` flag | `tests/cli.test.js` | ✅ Resolved (18 tests) |
+| P1 | **M1-2** Remove duplicate `generateMarkdownReport` fallback from `cli.js` | `src/cli.js` | ✅ Resolved |
+| P2 | **M1-3** Run concurrent rule scanning within `scanFile` with per-rule error isolation | `src/engine/scanner.js` | ✅ Resolved |
+| P2 | **M1-4** Attach `filePath` as `sourceFilename` to Babel parser options | `src/engine/ast-parser.js` | ✅ Resolved |
+| P2 | **M1-5** Add `severity` + `category` contract validation to `rule-registry.js` | `src/engine/rule-registry.js` | ✅ Resolved |
+| P2 | **M1-6** Pre-hash seed passwords in `demo/db/setup.js` with SHA-256 to match the auth flow | `demo/db/setup.js` | ✅ Resolved |
+| P2 | **M1-7** Add non-existent path guard in `file-discovery.js` | `src/engine/file-discovery.js` | ✅ Resolved |
+| P3 | **M1-8** Import version from `package.json` dynamically instead of hardcoding `'1.0.0'` | `src/engine/scanner.js`, `src/cli.js` | ✅ Resolved |
+| P3 | **M1-9** Wire `createFinding()` factory into `scanner.js` finding normalization | `src/types/finding.js`, `src/engine/scanner.js` | ✅ Resolved |
+| P3 | **M1-9** Add `tests/engine/finding.test.js` for `createFinding` validation | `tests/engine/finding.test.js` | ✅ Resolved (7 tests) |
 
 ---
 
