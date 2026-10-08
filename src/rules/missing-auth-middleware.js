@@ -107,6 +107,23 @@ function isValidExpressRoute(node, details) {
   return true;
 }
 
+/**
+ * Checks if a route path is located under any of the protected path prefixes.
+ *
+ * @param {string|null} routePath - Route path
+ * @param {Set<string>} prefixes - Set of protected prefix strings
+ * @returns {boolean}
+ */
+function isPathUnderProtectedPrefix(routePath, prefixes) {
+  if (!routePath) return false;
+  for (const prefix of prefixes) {
+    if (routePath === prefix || routePath.startsWith(prefix + '/') || routePath.startsWith(prefix + '?')) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export default {
   id: 'auth/missing-auth-middleware',
   name: 'Missing Authentication Middleware',
@@ -129,8 +146,12 @@ export default {
 
     // Track routers that have file-level or router-level auth middleware applied via router.use(...)
     const protectedRouters = new Set();
+    // Track path prefixes protected by middleware (e.g. app.use('/api', authenticate))
+    const protectedPrefixes = new Set();
+    // Track if global app-level auth is applied without a path prefix (e.g. app.use(authenticate))
+    let hasGlobalAppAuth = false;
 
-    // First pass: identify router-level auth middleware
+    // First pass: identify app-level and router-level auth middleware
     traverse(ast, {
       CallExpression(path) {
         if (!isExpressRoute(path.node)) return;
@@ -139,12 +160,49 @@ export default {
 
         if (details.method === 'use') {
           const callee = path.node.callee;
-          const routerName = t.isMemberExpression(callee) && t.isIdentifier(callee.object) ? callee.object.name : null;
+          const receiverName = t.isMemberExpression(callee) && t.isIdentifier(callee.object) ? callee.object.name : null;
+          const args = path.node.arguments || [];
+          if (args.length === 0) return;
 
-          // Check all arguments to .use(...) for auth middleware
-          const hasAuth = path.node.arguments.some(arg => isAuthMiddlewareNode(arg));
-          if (hasAuth && routerName) {
-            protectedRouters.add(routerName);
+          const hasAuth = args.some(arg => isAuthMiddlewareNode(arg));
+          const pathPrefix = t.isStringLiteral(args[0]) ? args[0].value : null;
+
+          if (hasAuth) {
+            if (pathPrefix) {
+              const normalizedPrefix = pathPrefix.endsWith('/') && pathPrefix.length > 1
+                ? pathPrefix.slice(0, -1)
+                : pathPrefix;
+              protectedPrefixes.add(normalizedPrefix);
+
+              // Mark any router passed alongside auth middleware as protected
+              // e.g. app.use('/api', authenticate, ordersRouter)
+              for (const arg of args) {
+                if (t.isIdentifier(arg) && !isAuthMiddlewareNode(arg)) {
+                  protectedRouters.add(arg.name);
+                }
+              }
+            } else {
+              if (receiverName) {
+                protectedRouters.add(receiverName);
+                if (receiverName === 'app' || receiverName === 'server') {
+                  hasGlobalAppAuth = true;
+                }
+              }
+            }
+          } else if (pathPrefix && receiverName) {
+            // Check if mounting a router under an already protected prefix
+            // e.g. app.use('/api/orders', ordersRouter) when '/api' is already protected
+            const normalizedPrefix = pathPrefix.endsWith('/') && pathPrefix.length > 1
+              ? pathPrefix.slice(0, -1)
+              : pathPrefix;
+            const isUnderProtectedPrefix = isPathUnderProtectedPrefix(normalizedPrefix, protectedPrefixes);
+            if (isUnderProtectedPrefix) {
+              for (const arg of args) {
+                if (t.isIdentifier(arg)) {
+                  protectedRouters.add(arg.name);
+                }
+              }
+            }
           }
         }
       }
@@ -166,10 +224,18 @@ export default {
         // Check if the route is sensitive
         if (!isSensitiveRoute(routePath, filePath)) return;
 
+        // Check if global app-level auth applies
+        if (hasGlobalAppAuth) return;
+
         // Check if the router has router-level auth middleware
         const callee = path.node.callee;
         const routerName = t.isMemberExpression(callee) && t.isIdentifier(callee.object) ? callee.object.name : null;
         if (routerName && protectedRouters.has(routerName)) {
+          return;
+        }
+
+        // Check if route path is covered by a protected prefix (e.g. app.use('/api', authenticate))
+        if (routePath && isPathUnderProtectedPrefix(routePath, protectedPrefixes)) {
           return;
         }
 

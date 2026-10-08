@@ -114,4 +114,53 @@ describe('Rule: auth/missing-auth-middleware', () => {
     });
     expect(findings).toEqual([]);
   });
+
+  it('recognizes app.use("/api", authenticate) and protects subroutes (Issue M4-3 true negative)', () => {
+    const code = `
+      app.use('/api', authenticate);
+      app.get('/api/orders', (req, res) => {
+        res.json({ orders: [] });
+      });
+      app.post('/api/checkout', (req, res) => {
+        res.json({ status: 'ok' });
+      });
+    `;
+    const findings = analyzeCode(code, 'app.js');
+    expect(findings).toHaveLength(0);
+  });
+
+  it('flags routes outside app.use("/api", authenticate) prefix (true positive)', () => {
+    const code = `
+      app.use('/api', authenticate);
+      app.get('/orders', (req, res) => {
+        res.json({ orders: [] });
+      });
+    `;
+    const findings = analyzeCode(code, 'app.js');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ruleId).toBe('auth/missing-auth-middleware');
+  });
+
+  it('recognizes global app.use(authenticate) without path prefix (true negative)', () => {
+    const code = `
+      app.use(requireAuth);
+      app.get('/api/orders', (req, res) => {
+        res.json({ orders: [] });
+      });
+    `;
+    const findings = analyzeCode(code, 'app.js');
+    expect(findings).toHaveLength(0);
+  });
+
+  it('recognizes router mounted under protected prefix with auth middleware (true negative)', () => {
+    const code = `
+      app.use('/api', authenticate, ordersRouter);
+      ordersRouter.get('/orders', (req, res) => {
+        res.json({ orders: [] });
+      });
+    `;
+    const findings = analyzeCode(code, 'app.js');
+    expect(findings).toHaveLength(0);
+  });
 });
+
