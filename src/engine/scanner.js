@@ -1,9 +1,25 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { discoverFiles } from './file-discovery.js';
 import { parseSource } from './ast-parser.js';
 import { loadRules } from './rule-registry.js';
 import { calculateSeverityCounts } from '../types/report.js';
+import { createFinding } from '../types/finding.js';
+
+let packageVersion = '1.0.0';
+try {
+  const pkgPath = fileURLToPath(new URL('../../package.json', import.meta.url));
+  const pkg = JSON.parse(fsSync.readFileSync(pkgPath, 'utf-8'));
+  if (pkg && pkg.version) {
+    packageVersion = pkg.version;
+  }
+} catch {
+  // fallback if package.json cannot be read
+}
+
+export const SCANNER_VERSION = packageVersion;
 
 /**
  * Scans a single file against an array of rules.
@@ -26,19 +42,17 @@ export async function scanFile(filePath, rules, content = null) {
     lines
   };
 
-  const fileFindings = [];
-
-  for (const rule of rules) {
+  const perRulePromises = rules.map(async (rule) => {
     try {
-      const result = rule.analyze(context);
+      const result = await rule.analyze(context);
       const findings = Array.isArray(result) ? result : [];
 
-      for (const finding of findings) {
-        fileFindings.push({
+      return findings.map((finding) =>
+        createFinding({
           ruleId: finding.ruleId || rule.id,
           severity: finding.severity || rule.severity,
           file: finding.file || filePath,
-          line: finding.line,
+          line: typeof finding.line === 'number' ? finding.line : 1,
           endLine: finding.endLine,
           column: finding.column,
           codeSnippet: finding.codeSnippet || (finding.line ? lines[finding.line - 1] || '' : ''),
@@ -46,14 +60,16 @@ export async function scanFile(filePath, rules, content = null) {
           explanation: finding.explanation || rule.defaultExplanation,
           remediation: finding.remediation || rule.defaultRemediation,
           confidence: finding.confidence || 'high'
-        });
-      }
+        })
+      );
     } catch (err) {
       console.warn(`[TrustLayer] Error executing rule "${rule.id}" on "${filePath}":`, err.message);
+      return [];
     }
-  }
+  });
 
-  return fileFindings;
+  const perRuleFindings = await Promise.all(perRulePromises);
+  return perRuleFindings.flat();
 }
 
 /**
@@ -96,7 +112,7 @@ export async function scan(targetPath, options = {}) {
   const severities = calculateSeverityCounts(allFindings);
 
   return {
-    scannerVersion: '1.0.0',
+    scannerVersion: SCANNER_VERSION,
     scanDate: new Date().toISOString(),
     targetDirectory: resolvedTarget,
     summary: {

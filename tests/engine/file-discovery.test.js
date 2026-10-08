@@ -133,4 +133,9 @@ describe('Engine: file-discovery (discoverFiles)', () => {
     const files = await discoverFiles(emptySubDir);
     expect(files).toEqual([]);
   });
+
+  it('throws an error when targetPath does not exist', async () => {
+    const nonExistent = path.join(tempDir, 'non-existent-path');
+    await expect(discoverFiles(nonExistent)).rejects.toThrow('Target path does not exist');
+  });
 });

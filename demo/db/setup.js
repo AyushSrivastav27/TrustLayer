@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -56,24 +57,26 @@ export function initDatabase() {
       VALUES (@name, @email, @password, @role)
     `);
 
+    const hashPassword = (pwd) => crypto.createHash('sha256').update(pwd).digest('hex');
+
     insertUser.run({
       name: 'System Administrator',
       email: 'admin@quickshop.com',
-      password: 'admin_password_hash_123',
+      password: hashPassword('admin123'),
       role: 'admin'
     });
 
     insertUser.run({
       name: 'Alice Johnson',
       email: 'alice@example.com',
-      password: 'password123',
+      password: hashPassword('password123'),
       role: 'user'
     });
 
     insertUser.run({
       name: 'Bob Smith',
       email: 'bob@example.com',
-      password: 'bob_password_secure',
+      password: hashPassword('bob123'),
       role: 'user'
     });
   }

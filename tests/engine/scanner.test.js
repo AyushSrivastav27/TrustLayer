@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { scanFile, scan } from '../../src/engine/scanner.js';
+import { scanFile, scan, SCANNER_VERSION } from '../../src/engine/scanner.js';
 
 describe('Engine: scanner', () => {
   let tempScanDir;
@@ -131,6 +131,26 @@ describe('Engine: scanner', () => {
 
       warnSpy.mockRestore();
     });
+
+    it('executes multiple rules concurrently and flattens all findings', async () => {
+      const asyncRule1 = {
+        id: 'test/async-1',
+        severity: 'high',
+        analyze: async () => [{ line: 1, message: 'Async 1 finding' }]
+      };
+      const asyncRule2 = {
+        id: 'test/async-2',
+        severity: 'medium',
+        analyze: async () => [{ line: 2, message: 'Async 2 finding' }]
+      };
+
+      const findings = await scanFile(sampleFilePath, [asyncRule1, asyncRule2, mockVulnerableRule]);
+      expect(findings).toHaveLength(3);
+      const ruleIds = findings.map(f => f.ruleId);
+      expect(ruleIds).toContain('test/async-1');
+      expect(ruleIds).toContain('test/async-2');
+      expect(ruleIds).toContain('test/vulnerable-keyword');
+    });
   });
 
   describe('scan', () => {
@@ -139,6 +159,7 @@ describe('Engine: scanner', () => {
         rules: [mockVulnerableRule, mockCleanRule]
       });
 
+      expect(report.scannerVersion).toBe(SCANNER_VERSION);
       expect(report.scannerVersion).toBe('1.0.0');
       expect(report.scanDate).toBeDefined();
       expect(new Date(report.scanDate).toString()).not.toBe('Invalid Date');

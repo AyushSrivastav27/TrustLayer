@@ -4,9 +4,11 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
-import { scan } from './engine/scanner.js';
+import { scan, SCANNER_VERSION } from './engine/scanner.js';
+import { generateMarkdownReport } from './reporters/markdown-reporter.js';
 
 const program = new Command();
 
@@ -30,7 +32,7 @@ const SUPPORTED_FORMATS = ['markdown', 'md', 'json'];
 
 function printBanner() {
   console.log(chalk.cyan.bold(ANSI_SHADOW_BANNER));
-  console.log(chalk.bold.white(' 🔍 TrustLayer Static Security Scanner v1.0.0'));
+  console.log(chalk.bold.white(` 🔍 TrustLayer Static Security Scanner v${SCANNER_VERSION}`));
   console.log(chalk.gray('    Deterministic AST & Data-Flow Analysis for Node.js/Express'));
   console.log(chalk.gray(' ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
 }
@@ -42,7 +44,7 @@ function printBanner() {
  * @param {string} formatOption
  * @returns {{ filePath: string, format: string }}
  */
-function resolveReportTarget(outputOption, formatOption) {
+export function resolveReportTarget(outputOption, formatOption) {
   let format = (formatOption || 'markdown').toLowerCase();
   if (format === 'md') format = 'markdown';
 
@@ -72,55 +74,6 @@ function resolveReportTarget(outputOption, formatOption) {
   };
 }
 
-/**
- * Generates a Markdown report from scan findings.
- *
- * @param {import('./types/report.js').ScanReport} report
- * @returns {string}
- */
-function generateMarkdownReport(report) {
-  const { summary, findings, targetDirectory, scanDate } = report;
-  const sev = summary.severities;
-
-  let md = `# 🔒 TrustLayer Security Report\n\n`;
-  md += `**Target**: \`${targetDirectory}\`  \n`;
-  md += `**Scan Date**: ${scanDate}  \n`;
-  md += `**Total Scanned Files**: ${summary.totalFiles}  \n`;
-  md += `**Total Findings**: ${summary.totalFindings}  \n`;
-  md += `**Summary**: 🔴 Critical: ${sev.critical} | 🟠 High: ${sev.high} | 🟡 Medium: ${sev.medium} | 🔵 Low: ${sev.low}\n\n`;
-  md += `---\n\n`;
-
-  if (findings.length === 0) {
-    md += `## ✅ Clean Scan\n\nNo security issues were identified in this scan.\n`;
-    return md;
-  }
-
-  for (const finding of findings) {
-    const icon = SEVERITY_ICONS[finding.severity] || '⚪';
-    const relFile = path.relative(process.cwd(), finding.file) || finding.file;
-    md += `### ${icon} ${finding.severity.toUpperCase()}: ${finding.message}\n\n`;
-    md += `- **File**: \`${relFile}:${finding.line}\`\n`;
-    md += `- **Rule ID**: \`${finding.ruleId}\`\n`;
-    md += `- **Confidence**: ${finding.confidence || 'high'}\n\n`;
-
-    if (finding.codeSnippet) {
-      md += `#### Vulnerable Code\n\`\`\`javascript\n${finding.codeSnippet}\n\`\`\`\n\n`;
-    }
-
-    if (finding.explanation) {
-      md += `#### Why This Is Dangerous\n${finding.explanation}\n\n`;
-    }
-
-    if (finding.remediation) {
-      md += `#### Recommended Remediation\n\`\`\`javascript\n${finding.remediation}\n\`\`\`\n\n`;
-    }
-
-    md += `---\n\n`;
-  }
-
-  return md;
-}
-
 const EXAMPLES_HELP = `
 Examples:
   $ trustlayer                               Scan current directory (saves SECURITY-REPORT.md)
@@ -135,7 +88,7 @@ Examples:
 program
   .name('trustlayer')
   .description('Deterministic static security scanner for Node.js/Express APIs')
-  .version('1.0.0')
+  .version(SCANNER_VERSION)
   .addHelpText('after', EXAMPLES_HELP);
 
 program
@@ -242,18 +195,7 @@ program
         if (format === 'json') {
           reportContent = JSON.stringify(report, null, 2);
         } else {
-          try {
-            const reporterModule = await import('./reporters/markdown-reporter.js');
-            if (typeof reporterModule.generateMarkdownReport === 'function') {
-              reportContent = reporterModule.generateMarkdownReport(report);
-            } else if (typeof reporterModule.default === 'function') {
-              reportContent = reporterModule.default(report);
-            } else {
-              reportContent = generateMarkdownReport(report);
-            }
-          } catch {
-            reportContent = generateMarkdownReport(report);
-          }
+          reportContent = generateMarkdownReport(report);
         }
 
         await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -272,4 +214,19 @@ program
     }
   });
 
-program.parse(process.argv);
+let isDirectRun = false;
+if (process.argv[1]) {
+  try {
+    const realArgv1 = fsSync.realpathSync(path.resolve(process.argv[1]));
+    const thisFile = fileURLToPath(import.meta.url);
+    isDirectRun = realArgv1 === thisFile;
+  } catch {
+    isDirectRun = false;
+  }
+}
+
+if (isDirectRun) {
+  program.parse(process.argv);
+}
+
+export { program, generateMarkdownReport };
