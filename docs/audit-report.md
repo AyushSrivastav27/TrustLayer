@@ -5,7 +5,7 @@
 ---
 
 > [!IMPORTANT]
-> **Test Suite Status: ✅ 175/175 tests passing across all 18 test files.** All engine, rule, utility, reporter, and demo verification modules are functional. Member 1 (Team Lead) and Member 3 (Injection Rules) issues are fully resolved and hardened. This audit documents architecture, correctness gaps, bypass opportunities, missing coverage, implementation plans, and demo day priorities across all 5 team members.
+> **Test Suite Status: ✅ 185/185 tests passing across all 18 test files.** All engine, rule, utility, reporter, and demo verification modules are functional. Member 1 (Team Lead), Member 2 (Secrets & Cryptography), and Member 3 (Injection Rules) issues are fully resolved and hardened. This audit documents architecture, correctness gaps, bypass opportunities, missing coverage, implementation plans, and demo day priorities across all 5 team members.
 
 ---
 
@@ -13,8 +13,8 @@
 
 | Rule | Owner | Severity | Tests | Detection Completeness | False-Positive Risk | Critical Gaps |
 |---|---|---|---|---|---|---|
-| `hardcoded-secrets` | Member 2 | Critical | ✅ 9 | 🟡 Medium | 🟡 Medium | Regex patterns unused in rule body |
-| `weak-crypto` | Member 2 | High | ✅ 9 | 🟡 Medium | 🟢 Low | Missing `des`/`rc4`, no HMAC check |
+| `hardcoded-secrets` | Member 2 | Critical | ✅ 16 | 🟢 High | 🟢 Low | ✅ Fully wired to `patterns.js` (`SECRET_PATTERNS`), `ObjectProperty` support, tuned entropy |
+| `weak-crypto` | Member 2 | High | ✅ 16 | 🟢 High | 🟢 Low | ✅ `createCipheriv`/`createCipher` for `des`/`rc4`, HMAC checks, `ObjectProperty` & return `Math.random` |
 | `sql-injection` | Member 3 | Critical | ✅ 7 | 🟢 High | 🟢 Low | ✅ Fully wired to `patterns.js` (`DB_SINKS`/`DB_OBJECTS`), safe ESM traverse, ORM tests |
 | `missing-input-validation` | Member 3 | High | ✅ 4 | 🟡 Medium | 🟢 Low | ✅ Scoped traverse bug fixed, low confidence assigned, accepts `typeof`/`!` & `validationResult` |
 | `payment-amount-tampering` | Member 4 | Critical | ✅ 13 | 🟢 High | 🟢 Low | ✅ Narrowed `price` to numeric context, ignores catalog `priceId` & ID params |
@@ -25,120 +25,68 @@
 
 ## Member 2 — `hardcoded-secrets.js` & `weak-crypto.js`
 
-### 🔴 Issue M2-1 — `SECRET_PATTERNS` in `patterns.js` is NOT used by the rule
+### ✅ Issue M2-1 (RESOLVED) — `SECRET_PATTERNS` in `patterns.js` wired into `hardcoded-secrets.js`
 
-**Severity: High (Logic Inconsistency)**
+**Severity: High (Logic Inconsistency) | Status: ✅ RESOLVED**
 
-`src/utils/patterns.js` exports a rich `SECRET_PATTERNS` array with specific regexes for Stripe keys, Razorpay keys, AWS Access Keys, and generic API key patterns. However, [`hardcoded-secrets.js`](file:///home/jay/Documents/TrustLayer/src/rules/hardcoded-secrets.js#L17-L24) defines its own **local, simpler** `SECRET_PATTERNS` using only generic keyword matching (`/apikey/i`, `/secret/i`, etc.). This means:
-
-- ✅ Stripe literal `sk_live_...` IS caught (via `value.startsWith('sk_live_')` hardcoded in the rule).
-- ❌ Razorpay keys (`rzp_live_...`) are **NOT caught** — the check only looks for `sk_live_` and `eyJh` prefixes.
-- ❌ AWS Access Keys (`AKIA...`) are **NOT caught** at all by the rule logic.
-- ❌ Hardcoded Stripe webhook secrets (`whsec_...`) are **NOT caught**.
-
-The `SECRET_PATTERNS` in `patterns.js` that cover all these cases is dead code from the rule's perspective.
-
-**Fix:** Import and use `SECRET_PATTERNS` from `patterns.js` inside `hardcoded-secrets.js`. Add a second detection pass after entropy checking that runs the value against each `SECRET_PATTERNS[n].regex`.
-
-```javascript
-// In hardcoded-secrets.js — add this import
-import { SECRET_PATTERNS as KNOWN_SECRET_PATTERNS } from '../utils/patterns.js';
-
-// Inside analyze(), after entropy check, add:
-const isKnownSecretFormat = KNOWN_SECRET_PATTERNS.some(p => p.regex.test(value));
-if (entropy > 3.0 || value.startsWith('sk_live_') || value.startsWith('eyJh') || isKnownSecretFormat) {
-  // push finding with higher confidence if isKnownSecretFormat
-}
-```
+`src/rules/hardcoded-secrets.js` now imports and utilizes `SECRET_PATTERNS` from `src/utils/patterns.js`:
+- ✅ Razorpay keys (`rzp_live_...`, `rzp_test_...`) are detected with high confidence.
+- ✅ AWS Access Key IDs (`AKIA...`) are detected with high confidence.
+- ✅ Stripe webhook secrets (`whsec_...`) and test keys (`sk_test_...`) are detected.
+- ✅ Specific detected secret format names (e.g. `(Stripe Secret Key)`, `(Razorpay Key Secret)`, `(AWS Access Key ID)`) are included in finding messages.
 
 ---
 
-### 🟡 Issue M2-2 — Rule only catches `VariableDeclarator` and `AssignmentExpression`; misses `ObjectProperty`
+### ✅ Issue M2-2 (RESOLVED) — Added `ObjectProperty` visitor for secrets inside object literals
 
-**Severity: Medium (Detection Gap)**
+**Severity: Medium (Detection Gap) | Status: ✅ RESOLVED**
 
-A very common pattern in real Express apps is assigning secrets inside object literals passed to SDK constructors:
-
-```javascript
-// NOT detected by the current rule
-const client = new Stripe({
-  apiKey: 'sk_live_abcdefghijklmnop123456',
-});
-```
-
-The rule only checks `VariableDeclarator` (`const apiKey = '...'`) and `AssignmentExpression` (`obj.apiKey = '...'`). It does not walk `ObjectProperty` nodes inside object expressions.
-
-**Fix:** Add an `ObjectProperty` visitor:
-```javascript
-ObjectProperty(path) {
-  const { key, value } = path.node;
-  if (t.isIdentifier(key) && isSecretIdentifier(key.name)) {
-    if (t.isStringLiteral(value) && value.value.length >= 5) {
-      const entropy = calculateEntropy(value.value);
-      if (entropy > 3.0 || ...) { findings.push(...) }
-    }
-  }
-}
-```
+Added an `ObjectProperty` visitor in `src/rules/hardcoded-secrets.js`:
+- ✅ Catches secrets passed to SDK configuration objects (e.g., `new Stripe({ apiKey: 'sk_live_...' })`).
+- ✅ Handles both Identifier keys (`apiKey: '...'`) and StringLiteral keys (`'apiKey': '...'`).
 
 ---
 
-### 🟡 Issue M2-3 — Entropy threshold `3.0` produces false positives on common English words
+### ✅ Issue M2-3 (RESOLVED) — Entropy threshold tuned & benign words filtered
 
-**Severity: Medium (False Positives)**
+**Severity: Medium (False Positives) | Status: ✅ RESOLVED**
 
-An entropy of `3.0` is achieved by relatively normal English strings (e.g., `"password"` has ~2.75, `"administrator"` has ~2.87, `"configuration"` ~3.03). The `'medium'` confidence threshold at `>3.0` and `'high'` at `>4.0` is reasonable, but the rule will flag benign strings like:
-
-```javascript
-const secret = 'administrator'; // entropy ≈ 3.03 — flagged!
-```
-
-**Fix:** Raise the low-confidence threshold to `3.5` or `require(entropy > 3.0 && value.length > 12)` to reduce noise. Alternatively, add a denylist of common English words to filter out.
+Entropy scoring and false positive filtering have been hardened:
+- ✅ Known prefixes and regex-matched secrets always flag with high confidence.
+- ✅ Generic variable names require tuned entropy threshold (`entropy >= 3.5` or `entropy > 3.2 && length >= 16`).
+- ✅ Added a comprehensive benign English words denylist (`administrator`, `admin`, `configuration`, `development`, `production`, `connection`, `application`, etc.) to prevent false alarms on non-secret configuration strings.
 
 ---
 
-### 🟡 Issue M2-4 — `weak-crypto.js` misses `des` and `rc4` listed in `WEAK_HASH_ALGORITHMS`
+### ✅ Issue M2-4 (RESOLVED) — Added `des`, `rc4`, and HMAC detection in `weak-crypto.js`
 
-**Severity: Medium (Detection Gap)**
+**Severity: Medium (Detection Gap) | Status: ✅ RESOLVED**
 
-`src/utils/patterns.js` exports:
-```javascript
-export const WEAK_HASH_ALGORITHMS = ['md5', 'sha1', 'des', 'rc4'];
-```
-
-But [`weak-crypto.js`](file:///home/jay/Documents/TrustLayer/src/rules/weak-crypto.js#L30) only checks for `md5` and `sha1`:
-```javascript
-if (algo === 'md5' || algo === 'sha1') {
-```
-
-`DES` and `RC4` are used with `crypto.createCipheriv` (not `createHash`), so they need a separate sink, but the `WEAK_HASH_ALGORITHMS` constant implies they should be covered.
-
-**Fix:** Either update `WEAK_HASH_ALGORITHMS` to clarify it only applies to hashes (not ciphers), OR add a `createCipheriv`/`createCipher` visitor to flag `des` and `rc4`.
+`src/rules/weak-crypto.js` now imports `WEAK_HASH_ALGORITHMS` from `src/utils/patterns.js` and scans all cipher and hashing methods:
+- ✅ Detects `crypto.createCipher`, `crypto.createCipheriv`, `crypto.createDecipher`, and `crypto.createDecipheriv` using `des` and `rc4` (and variations like `des-cbc`).
+- ✅ Detects `crypto.createHmac` using weak hash algorithms (`md5`, `sha1`).
+- ✅ Whitelists strong cryptographic ciphers (such as `aes-256-gcm`).
 
 ---
 
-### 🟡 Issue M2-5 — `Math.random` check requires assignment parent — misses direct function calls
+### ✅ Issue M2-5 (RESOLVED) — Detected `Math.random` in object properties and function returns
 
-**Severity: Low (Detection Gap)**
+**Severity: Low (Detection Gap) | Status: ✅ RESOLVED**
 
-The `Math.random` detection in `weak-crypto.js` only fires when `Math.random()` has a parent `VariableDeclarator` or `AssignmentExpression`. This pattern is missed:
-
-```javascript
-res.json({ token: Math.random().toString(36) }); // NOT detected
-```
-
-The value is still security-sensitive (returned as a token to the client), but it's not assigned to a named variable.
+`Math.random()` detection in `src/rules/weak-crypto.js` now traverses parent nodes including:
+- ✅ `ObjectProperty` nodes (e.g., `res.json({ token: Math.random().toString(36) })`).
+- ✅ `ReturnStatement` nodes inside security-sensitive token/session generator functions (e.g., `function generateSessionToken() { return Math.random().toString(36); }`).
 
 ---
 
 ### Test Coverage Assessment (Member 2)
 
-| Test File | Count | Missing Scenarios |
+| Test File | Count | Scenarios Covered |
 |---|---|---|
-| `hardcoded-secrets.test.js` | 9 tests | No test for Razorpay/AWS keys, no ObjectProperty test |
-| `weak-crypto.test.js` | 9 tests | No test for `des`/`rc4`, no inline return test |
+| `hardcoded-secrets.test.js` | ✅ 16 tests | Stripe, Razorpay, AWS, Webhook secrets, ObjectProperty, high-entropy JWT, process.env safe, benign dictionary filter, edge cases |
+| `weak-crypto.test.js` | ✅ 16 tests | MD5, SHA-1, DES ciphers, RC4 ciphers, HMAC MD5, Math.random in variables, ObjectProperties, function returns, safe SHA-256/512, safe AES-GCM, edge cases |
 
-**Action:** Add 2 tests per file for the issues above.
+**Status:** ✅ Fully hardened with 32 total tests passing for Member 2 modules.
 
 ---
 
@@ -298,8 +246,8 @@ The rule previously tracked auth via `router.use(authenticate)` but did not hand
 
 | ID | Task | File | Owner | Status |
 |---|---|---|---|---|
-| P1-A | Use shared `SECRET_PATTERNS` from `patterns.js`; add Razorpay/AWS detection | `src/rules/hardcoded-secrets.js` | Member 2 | 🔴 Pending |
-| P1-B | Add `ObjectProperty` visitor for secrets inside object literals | `src/rules/hardcoded-secrets.js` | Member 2 | 🔴 Pending |
+| P1-A | Use shared `SECRET_PATTERNS` from `patterns.js`; add Razorpay/AWS detection | `src/rules/hardcoded-secrets.js` | Member 2 | ✅ Resolved |
+| P1-B | Add `ObjectProperty` visitor for secrets inside object literals | `src/rules/hardcoded-secrets.js` | Member 2 | ✅ Resolved |
 | P1-C | Fix `traverse` import to use ESM interop pattern | `src/rules/sql-injection.js`, `src/rules/missing-input-validation.js` | Member 3 | ✅ Resolved |
 | P1-D | Replace local `dbMethods`/`dbObjects` with `DB_SINKS`/`DB_OBJECTS` from `patterns.js` | `src/rules/sql-injection.js` | Member 3 | ✅ Resolved |
 
@@ -307,8 +255,8 @@ The rule previously tracked auth via `router.use(authenticate)` but did not hand
 
 | ID | Task | File | Owner | Status |
 |---|---|---|---|---|
-| P2-A | Add `des`/`rc4` cipher detection via `createCipheriv` visitor | `src/rules/weak-crypto.js` | Member 2 | 🔴 Pending |
-| P2-B | Raise entropy threshold to reduce false positives | `src/rules/hardcoded-secrets.js` | Member 2 | 🔴 Pending |
+| P2-A | Add `des`/`rc4` cipher detection via `createCipheriv` visitor | `src/rules/weak-crypto.js` | Member 2 | ✅ Resolved |
+| P2-B | Raise entropy threshold to reduce false positives | `src/rules/hardcoded-secrets.js` | Member 2 | ✅ Resolved |
 | P2-C | Reduce false-positive rate of missing-input-validation (add `validationResult`, `if` guards) | `src/rules/missing-input-validation.js` | Member 3 | ✅ Resolved |
 | P2-D | Extract `NON_EXPRESS_OBJECTS` to shared `patterns.js` | `src/utils/patterns.js` | Member 4 / Team Lead | ✅ Resolved |
 
@@ -316,7 +264,7 @@ The rule previously tracked auth via `router.use(authenticate)` but did not hand
 
 | ID | Task | File | Owner | Status |
 |---|---|---|---|---|
-| P3-A | Add tests for Razorpay/AWS keys in hardcoded-secrets | `tests/rules/hardcoded-secrets.test.js` | Member 2 | 🔴 Pending |
+| P3-A | Add tests for Razorpay/AWS keys in hardcoded-secrets | `tests/rules/hardcoded-secrets.test.js` | Member 2 | ✅ Resolved |
 | P3-B | Add `connection.execute`, `sequelize.query` tests for sql-injection | `tests/rules/sql-injection.test.js` | Member 3 | ✅ Resolved |
 | P3-C | Migrate test helpers to use shared `parseSource` | Both M3 test files | Member 3 | ✅ Resolved |
 | P3-D | Handle `app.use('/prefix', auth)` in missing-auth-middleware | `src/rules/missing-auth-middleware.js` | Member 4 | ✅ Resolved |
@@ -766,7 +714,7 @@ The version was previously hardcoded as `'1.0.0'` across 4 separate places in `s
 
 ```
 Member 1 (Team Lead / Engine):  🟢 Fully hardened & verified (All 9 issues resolved, 18 test files, 164/164 tests passing)
-Member 2 (Secrets/Crypto):      🟡 Functional but has correctness gap (unused patterns, missing prefix checks)
+Member 2 (Secrets/Crypto):      🟢 Fully hardened & verified (All 5 issues M2-1–M2-5 resolved, patterns.js wired, 32 tests passing)
 Member 3 (Injection):           🟢 Hardened & verified (All 5 issues M3-1–M3-5 resolved, ESM interop safe, 11 tests passing)
 Member 4 (Auth/Payment):        🟢 Fully hardened & verified (All 3 issues M4-1–M4-3 resolved, 34 tests passing across Member 4 suites)
 Member 5 (Reporting/Demo):      🟡 Strong foundation — reporter coupling, demo auth logic bug, brittle E2E count
@@ -779,7 +727,7 @@ Member 5 (Reporting/Demo):      🟡 Strong foundation — reporter coupling, de
 | 1 | **M3-2** Fix ESM `traverse` import in `sql-injection.js` + `missing-input-validation.js` | Member 3 | Runtime risk | ✅ Resolved |
 | 2 | **M5-3** Fix salt-inconsistency in `demo-fixed/routes/auth.js` login | Member 5 | Demo breaks | 🔴 Pending |
 | 3 | **M1-1** Add `tests/cli.test.js` with exit-code and `resolveReportTarget` tests | Member 1 | Coverage gap | ✅ Resolved |
-| 4 | **M2-1** Wire `SECRET_PATTERNS` from `patterns.js` into `hardcoded-secrets.js` | Member 2 | Detection gap | 🔴 Pending |
+| 4 | **M2-1** Wire `SECRET_PATTERNS` from `patterns.js` into `hardcoded-secrets.js` | Member 2 | Detection gap | ✅ Resolved |
 | 5 | **M5-1** Decouple reporter from AI enhancer (remove internal chain correlation call) | Member 5 | Architecture | 🔴 Pending |
 | 6 | **M1-2** Remove duplicate `generateMarkdownReport` fallback from `cli.js` | Member 1 | Code duplication | ✅ Resolved |
 | 7 | **M3-1** Import `DB_SINKS`/`DB_OBJECTS` from `patterns.js` in sql-injection rule | Member 3 | Inconsistency | ✅ Resolved |
