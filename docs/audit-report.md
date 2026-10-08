@@ -640,3 +640,42 @@ Member 5 (Reporting/Demo):      🟢 Fully hardened & verified (All 9 issues M5-
 | 9 | **M1-5** Add severity/category validation to `rule-registry.js` | Member 1 | Robustness | ✅ Resolved |
 | 10 | **M5-8** Harden assertions and expand suite in demo-verification | Member 5 | Test brittleness | ✅ Resolved |
 
+---
+
+## 🔮 Phase 2 Roadmap & Next Horizons (Deferred / Post-Hackathon Work)
+
+> [!NOTE]
+> **Audit Status:** All Phase 1 audit and hardening items above are 100% completed, hardened, and verified (225/225 tests passing). The tasks below represent **Phase 2 architecture expansions** scheduled for future implementation and kept undone per project planning.
+
+### 📦 1. Programmatic Library Interface (`src/index.js`)
+- **Objective:** Enable embedding TrustLayer directly into Node.js CI/CD pipelines, dev tooling, and build scripts without spawning CLI child processes.
+- **Target Specification:**
+  - Export `scan(options)` from [`src/engine/scanner.js`](file:///home/jay/Documents/TrustLayer/src/engine/scanner.js)
+  - Export `discoverFiles(targetPath, options)` from [`src/engine/file-discovery.js`](file:///home/jay/Documents/TrustLayer/src/engine/file-discovery.js)
+  - Export `parseSource(code, filePath)` from [`src/engine/ast-parser.js`](file:///home/jay/Documents/TrustLayer/src/engine/ast-parser.js)
+  - Export `enhanceReport(report, options)` from [`src/ai/enhancer.js`](file:///home/jay/Documents/TrustLayer/src/ai/enhancer.js)
+  - Export reporters: `generateMarkdownReport`, `generateJsonReport`, `toSarif`
+- **Status:** ⏳ Deferred / Kept undone for Phase 2 implementation.
+
+### 🌐 2. NPM Distribution & Global Packaging
+- **Objective:** Prepare TrustLayer for seamless `npm install -g trustlayer` and `npx trustlayer scan` execution.
+- **Target Specification:**
+  - Configure `package.json` with `"files": ["src", "LICENSE", "README.md"]`.
+  - Point `"main": "src/index.js"`.
+  - Validate cross-platform path normalization for Windows and Linux execution.
+- **Status:** ⏳ Deferred / Kept undone for Phase 2 implementation.
+
+### 🧩 3. Custom Rule Plugins & Config File (`.trustlayerrc.json`)
+- **Objective:** Allow external teams and organizations to declare custom rule sets and override severity thresholds.
+- **Target Specification:**
+  - Support auto-loading `.trustlayerrc.json` from the repository root.
+  - Configurable options: `rulesDir`, `failOn`, `ignore`, and custom payment API source/sink definitions.
+- **Status:** ⏳ Deferred / Kept undone for Phase 2 implementation.
+
+### 🔬 4. Extended Rule Portfolio (Post-Hackathon Rules)
+- **Objective:** Expand the AST rule library beyond the 7 core hackathon rules:
+  - `payment/insecure-callback-url`: Detects HTTP (unencrypted) callback or redirect URLs in payment gateway configurations.
+  - `auth/jwt-algorithm-none`: Detects explicit allowance of `none` algorithm in JWT verification.
+  - `injection/nosql-injection`: Detects untrusted inputs passed directly into MongoDB/Mongoose `$where` or query objects without sanitization.
+- **Status:** ⏳ Deferred / Kept undone for Phase 2 implementation.
+
