@@ -6,6 +6,7 @@ import { discoverFiles } from './file-discovery.js';
 import { parseSource } from './ast-parser.js';
 import { loadRules } from './rule-registry.js';
 import { calculateSeverityCounts } from '../types/report.js';
+import { createFinding } from '../types/finding.js';
 
 let packageVersion = '1.0.0';
 try {
@@ -46,19 +47,21 @@ export async function scanFile(filePath, rules, content = null) {
       const result = await rule.analyze(context);
       const findings = Array.isArray(result) ? result : [];
 
-      return findings.map((finding) => ({
-        ruleId: finding.ruleId || rule.id,
-        severity: finding.severity || rule.severity,
-        file: finding.file || filePath,
-        line: finding.line,
-        endLine: finding.endLine,
-        column: finding.column,
-        codeSnippet: finding.codeSnippet || (finding.line ? lines[finding.line - 1] || '' : ''),
-        message: finding.message || rule.description,
-        explanation: finding.explanation || rule.defaultExplanation,
-        remediation: finding.remediation || rule.defaultRemediation,
-        confidence: finding.confidence || 'high'
-      }));
+      return findings.map((finding) =>
+        createFinding({
+          ruleId: finding.ruleId || rule.id,
+          severity: finding.severity || rule.severity,
+          file: finding.file || filePath,
+          line: typeof finding.line === 'number' ? finding.line : 1,
+          endLine: finding.endLine,
+          column: finding.column,
+          codeSnippet: finding.codeSnippet || (finding.line ? lines[finding.line - 1] || '' : ''),
+          message: finding.message || rule.description,
+          explanation: finding.explanation || rule.defaultExplanation,
+          remediation: finding.remediation || rule.defaultRemediation,
+          confidence: finding.confidence || 'high'
+        })
+      );
     } catch (err) {
       console.warn(`[TrustLayer] Error executing rule "${rule.id}" on "${filePath}":`, err.message);
       return [];
