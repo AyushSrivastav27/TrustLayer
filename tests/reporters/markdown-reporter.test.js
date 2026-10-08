@@ -264,6 +264,7 @@ describe('Reporter: markdown-reporter', () => {
 
     it('worst-case: pure function immutability check (idempotent without mutating report object)', () => {
       const reportCopy = {
+        scanDate: '2026-10-08T12:00:00.000Z',
         summary: { totalFiles: 1, totalFindings: 1, severities: { critical: 1, high: 0, medium: 0, low: 0 } },
         findings: [
           { ruleId: 'payment/amount', severity: 'critical', file: 'route.js', line: 10 }
