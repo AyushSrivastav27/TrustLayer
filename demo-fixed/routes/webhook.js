@@ -5,7 +5,7 @@ import { db } from '../../demo/db/setup.js';
 
 const router = express.Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'dummy_stripe_key_not_configured');
-const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || 'dummy_webhook_secret_not_configured';
+const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || '';
 
 const webhookSchema = {
   parse(data) {
