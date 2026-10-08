@@ -8,8 +8,12 @@ import { fileURLToPath } from 'node:url';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import dotenv from 'dotenv';
 import { scan, SCANNER_VERSION } from './engine/scanner.js';
 import { generateMarkdownReport } from './reporters/markdown-reporter.js';
+
+// Auto-load .env from current directory at startup
+dotenv.config();
 
 const program = new Command();
 
@@ -79,6 +83,8 @@ const EXAMPLES_HELP = `
 Examples:
   $ trustlayer                               Scan current directory (saves SECURITY-REPORT.md)
   $ trustlayer scan ./demo                   Scan a specific project directory
+  $ trustlayer scan --ai                     Enhance scan with AI attack chains & exploit scenarios
+  $ trustlayer scan --ai --api-key <key>     Run online AI analysis with provided key (Gemini / OpenAI)
   $ trustlayer scan ./routes/checkout.js     Scan a single target file
   $ trustlayer scan --staged                 Scan only files staged in git index (pre-commit mode)
   $ trustlayer scan -s critical,high         Filter findings to critical and high only
@@ -106,6 +112,8 @@ program
   .option('-s, --severity <levels>', 'Filter findings by severity (comma-separated: critical, high, medium, low)')
   .option('-c, --category <categories>', 'Filter findings by category (comma-separated: secrets, injection, payment, auth)')
   .option('--fail-on <level>', 'Minimum severity level to trigger exit code 1 (critical, high, medium, low, none)', 'high')
+  .option('--ai', 'Enable AI-powered exploit scenario generation and attack chain correlation')
+  .option('--api-key <key>', 'API key for online AI analysis (Google Gemini or OpenAI)')
   .option('--staged', 'Scan only files staged in git index (pre-commit mode)')
   .option('--ignore <patterns...>', 'Additional glob patterns to ignore')
   .option('--no-report', 'Do not write any report file to disk (console output only)')
@@ -155,6 +163,12 @@ program
       process.exit(2);
     }
 
+    // Attempt to load .env from target directory if different from cwd
+    const targetEnvPath = path.join(resolvedTarget, '.env');
+    if (fsSync.existsSync(targetEnvPath)) {
+      dotenv.config({ path: targetEnvPath });
+    }
+
     if (options.rulesDir) {
       const resolvedRulesDir = path.resolve(process.cwd(), options.rulesDir.trim());
       if (!fsSync.existsSync(resolvedRulesDir)) {
@@ -185,13 +199,35 @@ program
       ? `${stagedFiles.length} staged file(s)`
       : (path.relative(process.cwd(), resolvedTarget) || '.');
 
+    // Multi-tier API key resolution for AI mode
+    let apiKey = null;
+    if (options.apiKey && typeof options.apiKey === 'string') {
+      apiKey = options.apiKey.trim();
+      console.warn(chalk.yellow(' ⚠️  Warning: Passing API keys via command-line arguments may expose them in shell history. Consider using the GEMINI_API_KEY environment variable or a local .env file instead.\n'));
+    } else if (process.env.GEMINI_API_KEY) {
+      apiKey = process.env.GEMINI_API_KEY.trim();
+    } else if (process.env.OPENAI_API_KEY) {
+      apiKey = process.env.OPENAI_API_KEY.trim();
+    }
+
+    // Display AI mode banner if --ai requested
+    if (options.ai) {
+      if (apiKey) {
+        const isGemini = apiKey.startsWith('AIza') || Boolean(process.env.GEMINI_API_KEY);
+        const providerName = isGemini ? 'Google Gemini 3.8 Flash' : 'OpenAI gpt-4o-mini';
+        console.log(chalk.cyan.bold(` ⚡ AI Mode: 🌐 ONLINE (${providerName}) — Generating contextual exploit diffs & attack chains\n`));
+      } else {
+        console.log(chalk.blue.bold(' 🛡️  AI Mode: 🔌 OFFLINE (Deterministic Heuristic Engine — Zero-Network Privacy)\n'));
+      }
+    }
+
     const spinner = ora({
       text: `Scanning files in ${chalk.cyan(targetDesc)}...`,
       color: 'cyan'
     }).start();
 
     try {
-      const report = await scan(resolvedTarget, {
+      let report = await scan(resolvedTarget, {
         rulesDir: options.rulesDir ? path.resolve(process.cwd(), options.rulesDir.trim()) : undefined,
         files: stagedFiles || undefined,
         severity: selectedSeverities,
@@ -203,6 +239,23 @@ program
       });
 
       spinner.stop();
+
+      // If AI mode enabled, enhance report with attack chains and exploit scenarios
+      if (options.ai) {
+        const aiSpinner = ora({
+          text: 'Enhancing findings with AI exploit scenarios and correlating attack chains...',
+          color: 'magenta'
+        }).start();
+
+        try {
+          const { enhanceReport } = await import('./ai/enhancer.js');
+          report = await enhanceReport(report, { apiKey });
+        } catch {
+          // Gracefully continue with raw report if enhancer fails
+        } finally {
+          aiSpinner.stop();
+        }
+      }
 
       const { summary, findings } = report;
       const scanTime = `${summary.scanDurationMs}ms`;
@@ -224,7 +277,14 @@ program
           const loc = `${relPath}:${finding.line}`;
           const title = (finding.message || finding.ruleId).padEnd(32);
 
-          console.log(` ${icon} ${colorFn(sevLabel)} ${chalk.white.bold(title)} ${chalk.gray(loc)}`);
+          let provenanceTag = '';
+          if (options.ai) {
+            provenanceTag = finding.aiMode === 'online'
+              ? chalk.cyan('[AI: Online]') + ' '
+              : chalk.gray('[AI: Offline]') + ' ';
+          }
+
+          console.log(` ${icon} ${colorFn(sevLabel)} ${chalk.white.bold(title)} ${provenanceTag}${chalk.gray(loc)}`);
         }
 
         console.log(chalk.gray('\n ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'));
@@ -238,6 +298,21 @@ program
             chalk.blue(`${counts.low} low`) + ')\n'
           )
         );
+
+        // Display correlated attack chains if present
+        if (report.attackChains && report.attackChains.length > 0) {
+          console.log(chalk.bold.magenta(' ⚡ Correlated Attack Chains (Composite Vulnerabilities):'));
+          for (const [idx, chain] of report.attackChains.entries()) {
+            const chainIcon = SEVERITY_ICONS[chain.severity] || '⚠️';
+            const chainSev = (chain.severity || 'high').toUpperCase();
+            console.log(`\n  ${chainIcon} ${chalk.bold.white(`Chain #${idx + 1}: ${chain.title}`)} ${chalk.red(`[${chainSev}]`)}`);
+            if (chain.findingIds && chain.findingIds.length > 0) {
+              console.log(`     ${chalk.gray('Rules:')} ${chalk.cyan(chain.findingIds.join(' + '))}`);
+            }
+            console.log(`     ${chalk.italic.white(chain.description)}`);
+          }
+          console.log('');
+        }
       }
 
       if (options.report !== false) {

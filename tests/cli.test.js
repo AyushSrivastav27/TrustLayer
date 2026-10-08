@@ -225,5 +225,21 @@ describe('CLI: Subprocess execution and exit codes', () => {
     const res = await runCli(['scan', 'demo', '-c', 'payment', '--no-report', '--no-banner']);
     expect(res.stdout).toContain('payment');
   }, 15000);
+
+  it('runs scan with --ai in offline heuristic mode and outputs attack chains', async () => {
+    const res = await runCli(['scan', 'demo', '--ai', '--no-report', '--no-banner', '--fail-on', 'none']);
+    expect(res.code).toBe(0);
+    expect(res.stdout).toContain('AI Mode: 🔌 OFFLINE');
+    expect(res.stdout).toContain('Correlated Attack Chains');
+    expect(res.stdout).toContain('[AI: Offline]');
+  }, 15000);
+
+  it('warns user when --api-key is passed as command-line argument', async () => {
+    const res = await runCli(['scan', 'demo-fixed', '--ai', '--api-key', 'AIzaSyFakeTestKey123', '--no-report', '--no-banner']);
+    expect(res.code).toBe(0);
+    expect(res.stderr + res.stdout).toContain('Warning: Passing API keys via command-line arguments');
+    expect(res.stdout).toContain('AI Mode: 🌐 ONLINE');
+  }, 15000);
 });
+
 

@@ -9,6 +9,12 @@
  * deterministic heuristic correlation rules without throwing errors.
  */
 
+import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
+
+export const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+export const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+
 /**
  * Pre-defined heuristic attack chains for offline / zero-network environments.
  */
@@ -97,9 +103,81 @@ export function getDeterministicScenario(ruleId) {
 }
 
 /**
- * In-memory cache for LLM responses to ensure demo reliability.
+ * In-memory cache for LLM responses to ensure demo reliability and prevent duplicate network calls.
  */
 const LLM_CACHE = new Map();
+
+/**
+ * Clears the in-memory LLM cache (useful for test resets).
+ */
+export function clearCache() {
+  LLM_CACHE.clear();
+}
+
+/**
+ * Attempts to extract surrounding code from the source file for rich context.
+ *
+ * @param {string} file
+ * @param {number} line
+ * @param {number} [windowSize=5]
+ * @returns {Promise<string|null>}
+ */
+async function extractSurroundingCode(file, line, windowSize = 5) {
+  if (!file || typeof line !== 'number' || line < 1) return null;
+  try {
+    if (!fsSync.existsSync(file)) return null;
+    const content = await fs.readFile(file, 'utf-8');
+    const lines = content.split(/\r?\n/);
+    const start = Math.max(0, line - 1 - windowSize);
+    const end = Math.min(lines.length, line + windowSize);
+    return lines
+      .slice(start, end)
+      .map((l, idx) => {
+        const lineNo = start + idx + 1;
+        const marker = lineNo === line ? ' > ' : '   ';
+        return `${marker}${String(lineNo).padStart(3, ' ')} | ${l}`;
+      })
+      .join('\n');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extracts and parses a JSON object from raw LLM output text.
+ * Handles markdown fences (```json ... ```) or embedded JSON brackets.
+ *
+ * @param {string} rawText
+ * @returns {Object|null}
+ */
+export function extractJsonFromResponse(rawText) {
+  if (!rawText || typeof rawText !== 'string') return null;
+  const trimmed = rawText.trim();
+
+  // 1. Direct JSON parse
+  try {
+    return JSON.parse(trimmed);
+  } catch {}
+
+  // 2. Extract from markdown code fence
+  const fenceMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenceMatch && fenceMatch[1]) {
+    try {
+      return JSON.parse(fenceMatch[1].trim());
+    } catch {}
+  }
+
+  // 3. Extract substring between first '{' and last '}'
+  const firstBrace = trimmed.indexOf('{');
+  const lastBrace = trimmed.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try {
+      return JSON.parse(trimmed.slice(firstBrace, lastBrace + 1));
+    } catch {}
+  }
+
+  return null;
+}
 
 /**
  * Correlates multiple independent findings into high-impact composite attack chains.
@@ -177,12 +255,21 @@ export async function enhanceFinding(finding, codeContextOrOptions = {}, options
     opts = codeContextOrOptions || {};
   }
 
-  const rawSnippet = codeContext || finding.codeSnippet || '';
-  const snippet = rawSnippet.slice(0, 2000);
+  // Rich context resolution: caller context -> surrounding file lines -> codeSnippet
+  let contextSnippet = codeContext;
+  if (!contextSnippet && finding.file && typeof finding.line === 'number') {
+    contextSnippet = await extractSurroundingCode(finding.file, finding.line);
+  }
+  if (!contextSnippet) {
+    contextSnippet = finding.codeSnippet || '';
+  }
+
+  const snippet = contextSnippet.slice(0, 3000);
   const defaultScenario = DETERMINISTIC_SCENARIOS[finding.ruleId] ||
     `An attacker targets "${finding.ruleId}" by injecting malformed input into the unvalidated handler.`;
 
   const apiKey = opts.apiKey || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
+  const timeoutMs = opts.timeout || 3000;
 
   // Base enhanced finding with deterministic offline values
   const baseEnhanced = {
@@ -191,7 +278,9 @@ export async function enhanceFinding(finding, codeContextOrOptions = {}, options
     aiExploitScenario: defaultScenario,
     aiRemediation: finding.remediation || '',
     aiConfidence: finding.confidence || 'high',
-    confidence: finding.confidence || 'high'
+    confidence: finding.confidence || 'high',
+    aiMode: 'offline',
+    aiEngine: 'Deterministic Heuristics'
   };
 
   // If no LLM API key, return deterministic heuristic enhancement immediately
@@ -200,7 +289,7 @@ export async function enhanceFinding(finding, codeContextOrOptions = {}, options
   }
 
   // Check cache for demo reliability
-  const cacheKey = `${finding.ruleId}:${snippet.slice(0, 80)}`;
+  const cacheKey = `${finding.ruleId}:${snippet.slice(0, 100)}`;
   if (LLM_CACHE.has(cacheKey)) {
     return {
       ...baseEnhanced,
@@ -210,27 +299,53 @@ export async function enhanceFinding(finding, codeContextOrOptions = {}, options
 
   // Optional online LLM call if API key provided
   try {
-    const prompt = `You are a cybersecurity expert. Explain the threat and detailed exploitation scenario for vulnerability "${finding.ruleId}".\nVulnerable Code:\n${snippet}\nProvide a concise analysis in 3-4 sentences.`;
+    const isGemini = apiKey.startsWith('AIza') || Boolean(process.env.GEMINI_API_KEY);
+    const isOpenAi = !isGemini && (apiKey.startsWith('sk-') || Boolean(process.env.OPENAI_API_KEY));
 
-    if (process.env.GEMINI_API_KEY || (apiKey && apiKey.startsWith('AIza'))) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const structuredPrompt =
+      `You are a principal application security engineer. Analyze this Node.js/Express security vulnerability:\n` +
+      `- Rule ID: "${finding.ruleId}"\n` +
+      `- Vulnerability Message: "${finding.message || ''}"\n` +
+      `- Severity: "${finding.severity || ''}"\n\n` +
+      `Vulnerable Code Context:\n${snippet}\n\n` +
+      `Respond strictly with a valid JSON object matching this schema without any markdown formatting:\n` +
+      `{\n` +
+      `  "exploitScenario": "Numbered step-by-step walkthrough explaining how an attacker exploits this in production",\n` +
+      `  "businessImpact": "Clear, concise impact description on financial loss, data breach, or service disruption (2-3 sentences)",\n` +
+      `  "remediation": "Corrected code snippet demonstrating the secure pattern"\n` +
+      `}`;
+
+    if (isGemini) {
+      const model = opts.model || DEFAULT_GEMINI_MODEL;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
+          contents: [{ parts: [{ text: structuredPrompt }] }],
+          generationConfig: {
+            temperature: 0.2,
+            maxOutputTokens: 800,
+            responseMimeType: 'application/json'
+          }
         }),
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(timeoutMs)
       });
 
       if (response.ok) {
         const data = await response.json();
         const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (text) {
+        const parsed = extractJsonFromResponse(text);
+
+        if (parsed) {
           const aiData = {
-            explanation: text.substring(0, 500),
-            aiExplanation: text.substring(0, 500),
-            aiExploitScenario: text.substring(0, 600)
+            explanation: parsed.businessImpact || text.slice(0, 500),
+            aiExplanation: parsed.businessImpact || text.slice(0, 500),
+            aiExploitScenario: parsed.exploitScenario || defaultScenario,
+            aiRemediation: parsed.remediation || finding.remediation || '',
+            remediation: parsed.remediation || finding.remediation || '',
+            aiMode: 'online',
+            aiEngine: `Google Gemini (${model})`
           };
           LLM_CACHE.set(cacheKey, aiData);
           return {
@@ -239,7 +354,8 @@ export async function enhanceFinding(finding, codeContextOrOptions = {}, options
           };
         }
       }
-    } else if (process.env.OPENAI_API_KEY || (apiKey && apiKey.startsWith('sk-'))) {
+    } else if (isOpenAi) {
+      const model = opts.model || DEFAULT_OPENAI_MODEL;
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -247,21 +363,29 @@ export async function enhanceFinding(finding, codeContextOrOptions = {}, options
           'Authorization': `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 300
+          model,
+          messages: [{ role: 'user', content: structuredPrompt }],
+          response_format: { type: 'json_object' },
+          max_tokens: 800,
+          temperature: 0.2
         }),
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(timeoutMs)
       });
 
       if (response.ok) {
         const data = await response.json();
         const text = data?.choices?.[0]?.message?.content;
-        if (text) {
+        const parsed = extractJsonFromResponse(text);
+
+        if (parsed) {
           const aiData = {
-            explanation: text.substring(0, 500),
-            aiExplanation: text.substring(0, 500),
-            aiExploitScenario: text.substring(0, 600)
+            explanation: parsed.businessImpact || text.slice(0, 500),
+            aiExplanation: parsed.businessImpact || text.slice(0, 500),
+            aiExploitScenario: parsed.exploitScenario || defaultScenario,
+            aiRemediation: parsed.remediation || finding.remediation || '',
+            remediation: parsed.remediation || finding.remediation || '',
+            aiMode: 'online',
+            aiEngine: `OpenAI (${model})`
           };
           LLM_CACHE.set(cacheKey, aiData);
           return {
@@ -272,14 +396,14 @@ export async function enhanceFinding(finding, codeContextOrOptions = {}, options
       }
     }
   } catch {
-    // Offline fallback on timeout, network error, or invalid key
+    // Offline fallback on timeout, network error, rate limit, or invalid key
   }
 
   return baseEnhanced;
 }
 
 /**
- * Enhances an entire ScanReport with attack chains and refined findings.
+ * Enhances an entire ScanReport with attack chains and refined findings concurrently.
  *
  * @param {import('../types/report.js').ScanReport} report
  * @param {Object} [options]
@@ -291,22 +415,35 @@ export async function enhanceReport(report, options = {}) {
   const findings = report.findings || [];
   const attackChains = correlateAttackChains(findings);
 
-  // Enhance each finding (or retain defaults)
-  const enhancedFindings = [];
-  for (const finding of findings) {
-    enhancedFindings.push(await enhanceFinding(finding, options));
-  }
+  // Parallel enhancement using Promise.all
+  const enhancedFindings = await Promise.all(
+    findings.map(finding => enhanceFinding(finding, options))
+  );
+
+  const anyOnline = enhancedFindings.some(f => f.aiMode === 'online');
+  const aiMode = anyOnline ? 'online' : 'offline';
+  const onlineEngine = enhancedFindings.find(f => f.aiMode === 'online')?.aiEngine;
+  const aiEngine = anyOnline
+    ? (onlineEngine || `Google Gemini (${DEFAULT_GEMINI_MODEL})`)
+    : 'Deterministic Heuristics';
 
   return {
     ...report,
     findings: enhancedFindings,
-    attackChains
+    attackChains,
+    aiMode,
+    aiEngine
   };
 }
 
 export default {
   correlateAttackChains,
   generateAttackChains,
+  getDeterministicScenario,
   enhanceFinding,
-  enhanceReport
+  enhanceReport,
+  clearCache,
+  extractJsonFromResponse,
+  DEFAULT_GEMINI_MODEL,
+  DEFAULT_OPENAI_MODEL
 };
