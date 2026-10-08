@@ -36,7 +36,21 @@ export async function discoverFiles(targetPath, options = {}) {
     return [resolvedPath];
   }
 
-  const ignore = [...DEFAULT_IGNORE, ...(options.ignore || [])];
+  let fileIgnores = [];
+  const ignoreFilePath = path.join(resolvedPath, '.trustlayerignore');
+  if (fs.existsSync(ignoreFilePath)) {
+    try {
+      const content = fs.readFileSync(ignoreFilePath, 'utf-8');
+      fileIgnores = content
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith('#'));
+    } catch {
+      // ignore read failures
+    }
+  }
+
+  const ignore = [...DEFAULT_IGNORE, ...fileIgnores, ...(options.ignore || [])];
 
   const files = await glob('**/*.{js,mjs,cjs,ts,mts,cts,jsx,tsx}', {
     cwd: resolvedPath,

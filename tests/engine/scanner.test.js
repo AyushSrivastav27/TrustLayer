@@ -211,5 +211,64 @@ describe('Engine: scanner', () => {
       expect(report.summary.totalFindings).toBe(0);
       expect(report.findings).toEqual([]);
     });
+
+    it('suppresses findings when preceded by trustlayer-disable-next-line', async () => {
+      const suppressedCode = `
+        // trustlayer-disable-next-line
+        DANGEROUS_CALL();
+        DANGEROUS_CALL();
+      `;
+      const findings = await scanFile('/fake/suppressed.js', [mockVulnerableRule], suppressedCode);
+
+      // Only the second call should be reported
+      expect(findings).toHaveLength(1);
+      expect(findings[0].line).toBe(4);
+    });
+
+    it('suppresses findings on the same line with trustlayer-disable-line or trustlayer-ignore', async () => {
+      const inlineSuppressed = `
+        DANGEROUS_CALL(); // trustlayer-disable-line
+        DANGEROUS_CALL();
+      `;
+      const findings = await scanFile('/fake/inline.js', [mockVulnerableRule], inlineSuppressed);
+
+      expect(findings).toHaveLength(1);
+      expect(findings[0].line).toBe(3);
+    });
+
+    it('suppresses only matching rule ID and preserves non-matching rules', async () => {
+      const targetedCode = `
+        // trustlayer-disable-next-line test/vulnerable-keyword
+        DANGEROUS_CALL();
+
+        // trustlayer-disable-next-line other/unrelated-rule
+        DANGEROUS_CALL();
+      `;
+      const findings = await scanFile('/fake/targeted.js', [mockVulnerableRule], targetedCode);
+
+      // First call is suppressed, second call is not suppressed
+      expect(findings).toHaveLength(1);
+      expect(findings[0].line).toBe(6);
+    });
+
+    it('supports custom options.files and severity/category filters in scan()', async () => {
+      const report = await scan(tempScanDir, {
+        rules: [mockVulnerableRule],
+        files: [sampleFilePath],
+        severity: ['critical'],
+        category: ['injection']
+      });
+
+      expect(report.summary.totalFiles).toBe(1);
+      expect(report.summary.totalFindings).toBe(1);
+
+      const filteredOut = await scan(tempScanDir, {
+        rules: [mockVulnerableRule],
+        files: [sampleFilePath],
+        severity: ['low']
+      });
+      expect(filteredOut.summary.totalFindings).toBe(0);
+    });
   });
 });
+

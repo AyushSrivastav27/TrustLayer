@@ -154,5 +154,20 @@ describe('Engine: file-discovery (discoverFiles)', () => {
     expect(relativePaths).not.toContain('types.d.ts');
     expect(relativePaths).not.toContain('service.test.ts');
   });
+
+  it('respects .trustlayerignore file in target directory', async () => {
+    const ignoreDir = path.join(tempDir, 'ignore-test-project');
+    await fs.mkdir(path.join(ignoreDir, 'legacy'), { recursive: true });
+    await fs.writeFile(path.join(ignoreDir, 'app.js'), '// app');
+    await fs.writeFile(path.join(ignoreDir, 'legacy', 'old.js'), '// old');
+    await fs.writeFile(path.join(ignoreDir, '.trustlayerignore'), '# comments\n**/legacy/**\n');
+
+    const files = await discoverFiles(ignoreDir);
+    const relativePaths = files.map(f => path.relative(ignoreDir, f).replace(/\\/g, '/'));
+
+    expect(relativePaths).toContain('app.js');
+    expect(relativePaths).not.toContain('legacy/old.js');
+  });
 });
+
 

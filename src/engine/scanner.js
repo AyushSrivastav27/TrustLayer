@@ -22,6 +22,57 @@ try {
 export const SCANNER_VERSION = packageVersion;
 
 /**
+ * Checks if a finding is suppressed by inline comments in the source code.
+ * Supports:
+ *   // trustlayer-disable-next-line [ruleId]
+ *   // trustlayer-disable-line [ruleId]
+ *   // trustlayer-ignore [ruleId]
+ *
+ * @param {import('../types/finding.js').Finding} finding
+ * @param {string[]} lines
+ * @returns {boolean}
+ */
+export function isFindingSuppressed(finding, lines) {
+  if (!finding.line || finding.line < 1 || !Array.isArray(lines) || finding.line > lines.length) {
+    return false;
+  }
+
+  const currentLineIndex = finding.line - 1;
+  const prevLineIndex = currentLineIndex - 1;
+
+  function ruleMatches(ruleQuery, targetRuleId) {
+    if (!ruleQuery) return true;
+    const tokens = ruleQuery.trim().split(/[\s,]+/).filter(Boolean);
+    if (tokens.length === 0) return true;
+    return tokens.some((token) => {
+      const cleanToken = token.toLowerCase();
+      const cleanTarget = targetRuleId.toLowerCase();
+      return cleanTarget === cleanToken ||
+             cleanTarget.endsWith(`/${cleanToken}`) ||
+             cleanTarget.includes(cleanToken);
+    });
+  }
+
+  // 1. Check previous line for disable-next-line
+  if (prevLineIndex >= 0) {
+    const prevLine = lines[prevLineIndex] || '';
+    const match = prevLine.match(/(?:\/\/|\/\*|\*)\s*trustlayer-(?:disable-next-line|ignore-next-line)(?:\s+([^\*\/]+))?/i);
+    if (match && ruleMatches(match[1], finding.ruleId)) {
+      return true;
+    }
+  }
+
+  // 2. Check current line for disable-line or ignore
+  const currentLine = lines[currentLineIndex] || '';
+  const matchCurrent = currentLine.match(/(?:\/\/|\/\*|\*)\s*trustlayer-(?:disable-line|ignore)(?:\s+([^\*\/]+))?/i);
+  if (matchCurrent && ruleMatches(matchCurrent[1], finding.ruleId)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Scans a single file against an array of rules.
  *
  * @param {string} filePath - Path to file
@@ -51,6 +102,7 @@ export async function scanFile(filePath, rules, content = null) {
         createFinding({
           ruleId: finding.ruleId || rule.id,
           severity: finding.severity || rule.severity,
+          category: finding.category || rule.category,
           file: finding.file || filePath,
           line: typeof finding.line === 'number' ? finding.line : 1,
           endLine: finding.endLine,
@@ -69,7 +121,8 @@ export async function scanFile(filePath, rules, content = null) {
   });
 
   const perRuleFindings = await Promise.all(perRulePromises);
-  return perRuleFindings.flat();
+  const rawFindings = perRuleFindings.flat();
+  return rawFindings.filter((finding) => !isFindingSuppressed(finding, lines));
 }
 
 /**
@@ -89,7 +142,9 @@ export async function scan(targetPath, options = {}) {
   const resolvedTarget = path.resolve(targetPath);
 
   const rules = options.rules || await loadRules(options.rulesDir);
-  const files = await discoverFiles(resolvedTarget, { ignore: options.ignore });
+  const files = options.files
+    ? options.files.map((f) => path.resolve(f))
+    : await discoverFiles(resolvedTarget, { ignore: options.ignore });
 
   const allFindings = [];
 
@@ -108,8 +163,21 @@ export async function scan(targetPath, options = {}) {
     }
   }
 
+  let finalFindings = allFindings;
+  if (Array.isArray(options.severity) && options.severity.length > 0) {
+    const allowed = options.severity.map((s) => s.toLowerCase());
+    finalFindings = finalFindings.filter((f) => allowed.includes((f.severity || '').toLowerCase()));
+  }
+  if (Array.isArray(options.category) && options.category.length > 0) {
+    const allowed = options.category.map((c) => c.toLowerCase());
+    finalFindings = finalFindings.filter((f) => {
+      const cat = f.category || (f.ruleId || '').split('/')[0] || '';
+      return allowed.includes(cat.toLowerCase());
+    });
+  }
+
   const durationMs = Date.now() - startTime;
-  const severities = calculateSeverityCounts(allFindings);
+  const severities = calculateSeverityCounts(finalFindings);
 
   return {
     scannerVersion: SCANNER_VERSION,
@@ -117,10 +185,10 @@ export async function scan(targetPath, options = {}) {
     targetDirectory: resolvedTarget,
     summary: {
       totalFiles: files.length,
-      totalFindings: allFindings.length,
+      totalFindings: finalFindings.length,
       severities,
       scanDurationMs: durationMs
     },
-    findings: allFindings
+    findings: finalFindings
   };
 }
