@@ -159,4 +159,48 @@ describe('Reporter: markdown-reporter', () => {
     expect(md).not.toContain(':undefined');
     expect(md).toContain('CRITICAL');
   });
+
+  it('renders explicit AI Analysis Engine provenance badge for online and offline modes', () => {
+    const onlineReport = {
+      summary: { totalFiles: 2, totalFindings: 1, severities: { critical: 1, high: 0, medium: 0, low: 0 } },
+      aiMode: 'online',
+      aiEngine: 'Google Gemini 3.8 Flash',
+      findings: [
+        {
+          ruleId: 'payment/amount',
+          severity: 'critical',
+          file: 'checkout.js',
+          line: 10,
+          aiMode: 'online',
+          aiEngine: 'Google Gemini 3.8 Flash'
+        }
+      ]
+    };
+
+    const onlineMd = generateMarkdownReport(onlineReport);
+    expect(onlineMd).toContain('**AI Analysis Engine**');
+    expect(onlineMd).toContain('🌐 Online (Google Gemini 3.8 Flash');
+    expect(onlineMd).toContain('- **AI Provenance**: `🌐 Online — Google Gemini 3.8 Flash`');
+
+    const offlineReport = {
+      summary: { totalFiles: 2, totalFindings: 1, severities: { critical: 0, high: 1, medium: 0, low: 0 } },
+      aiMode: 'offline',
+      aiEngine: 'Deterministic Heuristics',
+      findings: [
+        {
+          ruleId: 'crypto/weak',
+          severity: 'high',
+          file: 'token.js',
+          line: 4,
+          aiMode: 'offline'
+        }
+      ]
+    };
+
+    const offlineMd = generateMarkdownReport(offlineReport);
+    expect(offlineMd).toContain('**AI Analysis Engine**');
+    expect(offlineMd).toContain('🔌 Offline (Deterministic Heuristics');
+    expect(offlineMd).toContain('- **AI Provenance**: `🔌 Offline — Local Heuristic`');
+  });
 });
+

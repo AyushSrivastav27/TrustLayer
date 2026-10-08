@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { correlateAttackChains, getDeterministicScenario } from '../ai/enhancer.js';
+import { getDeterministicScenario } from '../ai/enhancer.js';
 
 const SEVERITY_BADGES = {
   critical: '🔴 **CRITICAL**',
@@ -17,6 +17,7 @@ const SEVERITY_ICONS = {
 
 /**
  * Formats a ScanReport object into a comprehensive GitHub Flavored Markdown report.
+ * Pure presentation layer: renders pre-enhanced findings and attack chains passed in the report.
  *
  * @param {import('../types/report.js').ScanReport} report - The security scan report object
  * @returns {string} Formatted Markdown content
@@ -37,7 +38,9 @@ export function generateMarkdownReport(report) {
       scanDurationMs: 0
     },
     findings = [],
-    attackChains = []
+    attackChains = [],
+    aiMode,
+    aiEngine
   } = report;
 
   const sev = summary.severities || { critical: 0, high: 0, medium: 0, low: 0 };
@@ -56,7 +59,16 @@ export function generateMarkdownReport(report) {
   md += `| **Files Analyzed** | **${summary.totalFiles}** files |\n`;
   md += `| **Scan Duration** | **${duration}** |\n`;
   md += `| **Total Issues Found** | **${summary.totalFindings}** |\n`;
-  md += `| **Risk Profile** | 🔴 Critical: **${sev.critical}** \| 🟠 High: **${sev.high}** \| 🟡 Medium: **${sev.medium}** \| 🔵 Low: **${sev.low}** |\n\n`;
+  md += `| **Risk Profile** | 🔴 Critical: **${sev.critical}** \| 🟠 High: **${sev.high}** \| 🟡 Medium: **${sev.medium}** \| 🔵 Low: **${sev.low}** |\n`;
+
+  if (aiMode || aiEngine) {
+    const isOnline = aiMode === 'online';
+    const engineLabel = isOnline
+      ? `🌐 Online (${aiEngine || 'Google Gemini 3.8 Flash'} — Dynamic Exploit & Remediation Diffs)`
+      : `🔌 Offline (${aiEngine || 'TrustLayer Deterministic Knowledge Graph'} — Air-Gapped Zero-Network)`;
+    md += `| **AI Analysis Engine** | ${engineLabel} |\n`;
+  }
+  md += `\n`;
 
   // Clean Scan Section
   if (findings.length === 0) {
@@ -67,18 +79,14 @@ export function generateMarkdownReport(report) {
     return md;
   }
 
-  // Correlated Attack Chains (via AI layer or heuristic correlation)
-  let activeChains = (attackChains && attackChains.length > 0) ? attackChains : [];
-  if (activeChains.length === 0 && typeof correlateAttackChains === 'function') {
-    try {
-      activeChains = correlateAttackChains(findings);
-    } catch {
-      activeChains = [];
-    }
-  }
+  // Correlated Attack Chains (rendered purely from report presentation data)
+  const activeChains = Array.isArray(attackChains) ? attackChains : [];
 
-  if (activeChains && activeChains.length > 0) {
-    md += `## ⚡ Correlated Attack Chains (AI Correlated)\n\n`;
+  if (activeChains.length > 0) {
+    const chainHeader = aiMode === 'online'
+      ? `## ⚡ Correlated Attack Chains (AI Online Correlated)\n\n`
+      : `## ⚡ Correlated Attack Chains (AI Correlated)\n\n`;
+    md += chainHeader;
     md += `The AI reasoning layer correlated multiple independent findings into the following composite exploit chains:\n\n`;
 
     for (const [index, chain] of activeChains.entries()) {
@@ -125,7 +133,14 @@ export function generateMarkdownReport(report) {
     md += `- **Rule**: \`${f.ruleId}\`\n`;
     const lineCol = f.line ? `:${f.line}${f.column ? `:${f.column}` : ''}` : '';
     md += `- **Location**: \`${relFile}${lineCol}\`\n`;
-    md += `- **Confidence**: \`${(f.confidence || 'high').toUpperCase()}\`\n\n`;
+    md += `- **Confidence**: \`${(f.confidence || 'high').toUpperCase()}\`\n`;
+    if (f.aiMode) {
+      const provenanceLabel = f.aiMode === 'online'
+        ? `\`🌐 Online — ${f.aiEngine || 'Gemini 3.8'}\``
+        : `\`🔌 Offline — Local Heuristic\``;
+      md += `- **AI Provenance**: ${provenanceLabel}\n`;
+    }
+    md += `\n`;
 
     if (f.codeSnippet) {
       md += `#### 🚨 Vulnerable Code\n`;
@@ -146,11 +161,10 @@ export function generateMarkdownReport(report) {
 
     if (f.remediation) {
       md += `#### 🛠️ Recommended Remediation\n`;
-      if (typeof f.remediation === 'string' && f.remediation.trim().startsWith('```')) {
+      if (typeof f.remediation === 'string' && f.remediation.includes('```')) {
         md += `${f.remediation}\n\n`;
       } else {
-        const fence = typeof f.remediation === 'string' && f.remediation.includes('```') ? '````' : '```';
-        md += `${fence}javascript\n${f.remediation}\n${fence}\n\n`;
+        md += `\`\`\`javascript\n${f.remediation}\n\`\`\`\n\n`;
       }
     }
 
