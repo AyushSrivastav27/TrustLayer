@@ -4,7 +4,7 @@
 > *Built for the Cybersecurity Hackathon — Theme: "Shipped Fast, Left Open"*
 
 [![Node.js Version](https://img.shields.io/badge/Node.js-20%2B-brightgreen.svg)](https://nodejs.org/)
-[![Test Suite](https://img.shields.io/badge/Vitest-50%20passed-success.svg)](https://vitest.dev/)
+[![Test Suite](https://img.shields.io/badge/Vitest-133%20passed-success.svg)](https://vitest.dev/)
 [![Language](https://img.shields.io/badge/Language-Modern%20ESM-yellow.svg)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![License](https://img.shields.io/badge/License-ISC-blue.svg)](LICENSE)
 [![Architecture](https://img.shields.io/badge/Design-Zero--LLM%20Detection%20Core-orange.svg)](#core-architecture)
@@ -33,8 +33,10 @@ Existing static analysis tools (Semgrep, ESLint-security, Gitleaks, SonarQube) s
   Tracks Express input sources (`req.body`, `req.params`, `req.query`, `req.headers`) and inspects middleware authorization chains across route definitions.
 - 🔌 **Dynamic Rule Auto-Discovery**  
   Rules in `src/rules/*.js` are discovered and registered at runtime via native ES module `import()`. No centralized hardcoded rule registry needed.
-- 🤖 **Additive AI Enhancement (Optional)**  
-  Vulnerability detection is 100% deterministic. AI is strictly additive: generating real-world exploit walkthroughs, estimating business impact, and crafting remediation code diffs.
+- 🤖 **Additive AI Enhancement & Attack Chains**  
+  Vulnerability detection is 100% deterministic. Additive offline heuristics correlate independent findings into multi-stage attack chains; optional LLM integration (Gemini / OpenAI) crafts real-world exploit walkthroughs and remediation diffs.
+- 📊 **Executive & CI/CD Reporting**  
+  Generates clean GitHub Flavored Markdown (GFM) executive summaries, structured JSON, and OASIS SARIF v2.1.0 output for direct GitHub Code Scanning integration.
 - 🪶 **Pure JavaScript Tooling**  
   Zero native C-bindings or tree-sitter compilation hazards; runs out-of-the-box on Node 20+ anywhere.
 
@@ -49,19 +51,19 @@ graph TD
     D["Rule Registry (Dynamic ESM Loader)"] --> E["Scanner Engine (Intra-Handler Traversal)"]
     C --> E
     E --> F["Structured Findings (Rule, File, Line, Code)"]
-    F --> G["Optional AI Enhancer (Exploits & Fix Diffs)"]
+    F --> G["Optional AI Enhancer & Attack Chain Correlator"]
     G --> H["Report Generators"]
     F --> H
     H --> I["Console Summary (ANSI Formatted Table)"]
     H --> J["Markdown Report (SECURITY-REPORT.md)"]
-    H --> K["JSON Export (audit.json)"]
+    H --> K["SARIF / JSON Export (audit.sarif / audit.json)"]
 ```
 
 ---
 
 ## 🚦 Project Status & Implementation Matrix
 
-The core scanner engine, CLI, shared utilities, data contracts, and demo application skeleton are completed and merged into `main`. Security rules and reporting modules are currently being integrated across specialized feature branches:
+All 5 core layers and specialized rule categories are **fully implemented, integrated, and verified** with **133/133 tests passing**:
 
 | Subsystem / Layer | Component / Files | Status | Test Coverage |
 |---|---|:---:|:---:|
@@ -72,11 +74,14 @@ The core scanner engine, CLI, shared utilities, data contracts, and demo applica
 | **Rule Auto-Registry** | `src/engine/rule-registry.js` | 🟢 Completed | 5 / 5 Tests Passing |
 | **Scanner Orchestrator** | `src/engine/scanner.js` | 🟢 Completed | 7 / 7 Tests Passing |
 | **CLI Interface** | `src/cli.js` (Commander.js, ANSI Banner, exit codes) | 🟢 Completed | Verified E2E |
-| **Demo Application** | `demo/server.js`, `demo/db/setup.js` (Express + SQLite) | 🟢 Completed | Verified E2E |
-| **Payment & Auth Rules** | `src/rules/payment-*.js`, `src/rules/missing-auth-*.js` | 🟡 `feature/auth-payment-rules` | In Progress |
-| **Secrets & Crypto Rules** | `src/rules/hardcoded-secrets.js`, `src/rules/weak-crypto.js` | 🟡 `feature/secrets-crypto` | In Progress |
-| **Injection Rules** | `src/rules/sql-injection.js`, `missing-input-validation.js` | 🟡 `feature/injection-rules` | In Progress |
-| **Reporting & AI** | `src/reporters/*`, `src/ai/*`, `demo/routes/*` | 🟡 `feature/demo-reporting` | In Progress |
+| **Payment Security Rules** | `payment-amount-tampering.js`, `missing-webhook-verification.js` | 🟢 Completed | 18 / 18 Tests Passing |
+| **Authentication Rules** | `src/rules/missing-auth-middleware.js` | 🟢 Completed | 8 / 8 Tests Passing |
+| **Secrets & Crypto Rules** | `src/rules/hardcoded-secrets.js`, `src/rules/weak-crypto.js` | 🟢 Completed | 22 / 22 Tests Passing |
+| **Injection Rules** | `src/rules/sql-injection.js`, `missing-input-validation.js` | 🟢 Completed | 9 / 9 Tests Passing |
+| **Reporting & SARIF** | `src/reporters/markdown-reporter.js`, `src/reporters/json-reporter.js` | 🟢 Completed | 14 / 14 Tests Passing |
+| **AI & Attack Chains** | `src/ai/enhancer.js` (Offline Heuristics + Multi-LLM) | 🟢 Completed | 8 / 8 Tests Passing |
+| **Vulnerable Demo App** | `demo/server.js`, `demo/routes/*`, `demo/db/*` | 🟢 Completed | 8 Canonical Flaws Verified |
+| **Hardened Reference App** | `demo-fixed/*` (Verified Remediation Counterpart) | 🟢 Completed | 100% Clean Scan (0 Flaws) |
 
 ---
 
@@ -119,19 +124,25 @@ node src/cli.js scan
 # 2. Scan a specific project directory
 node src/cli.js scan ./demo
 
-# 3. Scan a single file
+# 3. Scan vulnerable demo routes (flags exactly 8 canonical vulnerabilities)
+node src/cli.js scan ./demo/routes
+
+# 4. Scan hardened reference application (demonstrates 100% clean scan)
+node src/cli.js scan ./demo-fixed
+
+# 5. Scan a single file
 node src/cli.js scan ./demo/server.js
 
-# 4. Save report with custom name / Markdown format
-node src/cli.js scan ./demo -o audit-summary
+# 6. Save report with custom Markdown name & correlated attack chains
+node src/cli.js scan ./demo/routes -o audit-summary
 
-# 5. Export structured JSON report for CI/CD pipelines
-node src/cli.js scan ./demo -o audit -f json
+# 7. Export structured JSON or OASIS SARIF v2.1.0 for CI/CD pipelines
+node src/cli.js scan ./demo/routes -o audit -f json
 
-# 6. Terminal summary only (suppress file output)
+# 8. Terminal summary only (suppress file output)
 node src/cli.js scan ./demo --no-report
 
-# 7. Exclude custom directories from scan
+# 9. Exclude custom directories from scan
 node src/cli.js scan ./demo --ignore "**/fixtures/**"
 ```
 
@@ -142,19 +153,43 @@ node src/cli.js scan ./demo --ignore "**/fixtures/**"
 The repository uses **Vitest** for fast unit and integration testing.
 
 ```bash
-# Run all passing engine & utility test suites
-npx vitest run tests/engine/ tests/utils/
+# Run all 133 tests across all 16 test suites
+npm test
 
-# Run with test watcher during development
+# Run tests in watch mode during development
 npm run test:watch
 ```
 
-Current test status: **50 passing tests** across:
-- `tests/utils/ast-helpers.test.js` (21 tests)
-- `tests/engine/ast-parser.test.js` (9 tests)
-- `tests/engine/file-discovery.test.js` (8 tests)
-- `tests/engine/rule-registry.test.js` (5 tests)
-- `tests/engine/scanner.test.js` (7 tests)
+Current test status: **133 passing tests** across 16 test files:
+- **Core Engine (29 tests)**:
+  - `tests/engine/ast-parser.test.js` (9 tests)
+  - `tests/engine/file-discovery.test.js` (8 tests)
+  - `tests/engine/rule-registry.test.js` (5 tests)
+  - `tests/engine/scanner.test.js` (7 tests)
+- **AST Utilities (21 tests)**:
+  - `tests/utils/ast-helpers.test.js` (21 tests)
+- **Security Rules (57 tests)**:
+  - `tests/rules/payment-amount-tampering.test.js` (9 tests)
+  - `tests/rules/missing-webhook-verification.test.js` (9 tests)
+  - `tests/rules/missing-auth-middleware.test.js` (8 tests)
+  - `tests/rules/hardcoded-secrets.test.js` (11 tests)
+  - `tests/rules/weak-crypto.test.js` (11 tests)
+  - `tests/rules/sql-injection.test.js` (5 tests)
+  - `tests/rules/missing-input-validation.test.js` (4 tests)
+- **Reporters, AI & E2E Verification (26 tests)**:
+  - `tests/reporters/markdown-reporter.test.js` (8 tests)
+  - `tests/reporters/json-reporter.test.js` (6 tests)
+  - `tests/reporters/enhancer.test.js` (8 tests)
+  - `tests/reporters/demo-verification.test.js` (4 tests)
+
+---
+
+## 📚 Documentation & Audits
+
+- 📑 [**Comprehensive Team Audit Report**](docs/audit-report.md) — Detailed technical audit of all 5 members' codebases, test coverage gaps, edge-case analysis, implementation plans, and demo day priorities.
+- 🤖 [**AI Agent Directives (AGENTS.md)**](AGENTS.md) — Mandatory architecture rules, non-overlapping file ownership boundaries, and coding standards for AI assistants.
+- 👥 [**Team Roles & Ownership (ROLES.md)**](ROLES.md) — Developer responsibility matrix, branch workflows, and merge order.
+- 🤝 [**Contributing Guidelines (CONTRIBUTING.md)**](CONTRIBUTING.md) — Contribution protocols, rule interfaces, and pull request checklist.
 
 ---
 
@@ -162,6 +197,8 @@ Current test status: **50 passing tests** across:
 
 ```
 TrustLayer/
+├── docs/                       # Project documentation & team audits
+│   └── audit-report.md         # Comprehensive 5-member codebase audit & implementation plan
 ├── src/
 │   ├── cli.js                  # CLI entrypoint (Commander.js, formatting & exit codes)
 │   ├── types/                  # Core data contracts & JSDoc specifications
@@ -185,19 +222,21 @@ TrustLayer/
 │   │   ├── ast-helpers.js      # isMethodCall, isReqAccess, entropy calculations
 │   │   └── patterns.js         # Secret regex definitions & SQL sinks
 │   ├── reporters/              # Report generation formats
-│   │   ├── markdown-reporter.js
-│   │   └── json-reporter.js
+│   │   ├── markdown-reporter.js# GFM executive report with clean-scan banner
+│   │   └── json-reporter.js    # JSON & OASIS SARIF v2.1.0 generator
 │   └── ai/                     # Additive AI enhancement
-│       └── enhancer.js         # Optional exploit & remediation prompt enrichment
+│       └── enhancer.js         # Heuristic attack chains & multi-LLM enrichment
 ├── demo/                       # Deliberately vulnerable reference Express app
 │   ├── server.js               # Express application with route auto-mounting
 │   ├── db/setup.js             # SQLite initialization with realistic seeds
-│   └── routes/                 # Vulnerable API endpoints (auth, products, checkout, webhook)
-├── demo-fixed/                 # Hardened reference app demonstrating verified fixes
-├── tests/                      # Automated Vitest test suites
+│   ├── middleware/auth.js      # Middleware stubs
+│   └── routes/                 # 8 canonical vulnerable endpoints (auth, products, checkout, webhook)
+├── demo-fixed/                 # Hardened reference app demonstrating verified fixes (0 findings)
+├── tests/                      # Automated Vitest test suites (133 tests)
 │   ├── engine/                 # Unit tests for core engine modules (29 tests)
 │   ├── utils/                  # Unit tests for AST helpers & patterns (21 tests)
-│   └── rules/                  # Rule-specific true positive/negative unit tests
+│   ├── rules/                  # Rule-specific true positive/negative unit tests (57 tests)
+│   └── reporters/              # Reporters, AI enhancer, and E2E demo tests (26 tests)
 ├── AGENTS.md                   # Global directives for AI assistants
 ├── ROLES.md                    # Team member role boundaries & ownership guide
 ├── CONTRIBUTING.md             # Branching protocol and PR guidelines
@@ -247,13 +286,13 @@ export default exampleRule;
 
 To enable parallel development without merge conflicts, team members work in isolated branches:
 
-| Member | Focus Area | Branch | Owned Files |
-|---|---|---|---|
-| **Member 1 (Lead)** | Core Engine, CLI, Types, Utils, Tests, Demo Skeleton | `main` | `src/engine/*`, `src/cli.js`, `src/types/*`, `src/utils/*`, `demo/server.js`, `demo/db/*` |
-| **Member 2** | Secrets & Weak Cryptography | `feature/secrets-crypto` | `src/rules/hardcoded-secrets.js`, `src/rules/weak-crypto.js`, tests |
-| **Member 3** | SQL Injection & Validation Flaws | `feature/injection-rules` | `src/rules/sql-injection.js`, `src/rules/missing-input-validation.js`, tests |
-| **Member 4** | Payment Tampering & Auth Gaps | `feature/auth-payment-rules` | `src/rules/payment-*.js`, `src/rules/missing-webhook-*.js`, `missing-auth-*.js`, tests |
-| **Member 5** | Reporters, AI Enhancer, Demo Routes | `feature/demo-reporting` | `src/reporters/*`, `src/ai/*`, `demo/routes/*`, `demo-fixed/*` |
+| Member | Focus Area | Branch | Status | Owned Files |
+|---|---|---|:---:|---|
+| **Member 1 (Lead)** | Core Engine, CLI, Types, Utils, Tests, Demo Skeleton | `main` | 🟢 Merged | `src/engine/*`, `src/cli.js`, `src/types/*`, `src/utils/*`, `demo/server.js`, `demo/db/*` |
+| **Member 2** | Secrets & Weak Cryptography | `feature/secrets-crypto` | 🟢 Merged | `src/rules/hardcoded-secrets.js`, `src/rules/weak-crypto.js`, tests |
+| **Member 3** | SQL Injection & Validation Flaws | `feature/injection-rules` | 🟢 Merged | `src/rules/sql-injection.js`, `src/rules/missing-input-validation.js`, tests |
+| **Member 4** | Payment Tampering & Auth Gaps | `feature/auth-payment-rules` | 🟢 Merged | `src/rules/payment-*.js`, `src/rules/missing-webhook-*.js`, `missing-auth-*.js`, tests |
+| **Member 5** | Reporters, AI Enhancer, Demo Routes & Fixed App | `feature/demo-reporting` | 🟢 Merged | `src/reporters/*`, `src/ai/*`, `demo/routes/*`, `demo-fixed/*`, tests |
 
 For detailed development guidelines, refer to [ROLES.md](ROLES.md) and [AGENTS.md](AGENTS.md).
 
