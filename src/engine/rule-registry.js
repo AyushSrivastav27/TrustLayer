@@ -2,6 +2,9 @@ import { glob } from 'glob';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+export const VALID_SEVERITIES = ['critical', 'high', 'medium', 'low'];
+export const VALID_CATEGORIES = ['secrets', 'injection', 'payment', 'auth'];
+
 /**
  * Dynamically loads all rule definitions from src/rules/*.js
  *
@@ -20,8 +23,16 @@ export async function loadRules(rulesDir) {
       const module = await import(fileUrl);
       const rule = module.default;
 
-      if (rule && rule.id && typeof rule.analyze === 'function') {
+      if (
+        rule &&
+        typeof rule.id === 'string' &&
+        typeof rule.analyze === 'function' &&
+        VALID_SEVERITIES.includes(rule.severity) &&
+        VALID_CATEGORIES.includes(rule.category)
+      ) {
         rules.push(rule);
+      } else if (rule) {
+        console.warn(`[TrustLayer] Rule at ${filePath} failed contract validation.`);
       }
     } catch (err) {
       console.warn(`Failed to load rule at ${filePath}:`, err.message);

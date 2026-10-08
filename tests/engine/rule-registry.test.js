@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { loadRules } from '../../src/engine/rule-registry.js';
+import { loadRules, VALID_SEVERITIES, VALID_CATEGORIES } from '../../src/engine/rule-registry.js';
 
 describe('Engine: rule-registry (loadRules)', () => {
   let tempRulesDir;
@@ -69,6 +69,30 @@ describe('Engine: rule-registry (loadRules)', () => {
       path.join(tempRulesDir, 'broken-syntax.js'),
       `export default { broken syntax ::::`
     );
+
+    // Invalid rule: invalid severity
+    await fs.writeFile(
+      path.join(tempRulesDir, 'invalid-severity.js'),
+      `export default {
+        id: 'test/invalid-severity',
+        name: 'Invalid Severity',
+        severity: 'ultra-critical',
+        category: 'secrets',
+        analyze(context) { return []; }
+      };`
+    );
+
+    // Invalid rule: invalid category
+    await fs.writeFile(
+      path.join(tempRulesDir, 'invalid-category.js'),
+      `export default {
+        id: 'test/invalid-category',
+        name: 'Invalid Category',
+        severity: 'critical',
+        category: 'networking',
+        analyze(context) { return []; }
+      };`
+    );
   });
 
   afterAll(async () => {
@@ -131,5 +155,25 @@ describe('Engine: rule-registry (loadRules)', () => {
     // Currently placeholder files in src/rules exist, so it should return an array without throwing
     const rules = await loadRules();
     expect(Array.isArray(rules)).toBe(true);
+  });
+
+  it('exports VALID_SEVERITIES and VALID_CATEGORIES arrays', () => {
+    expect(VALID_SEVERITIES).toEqual(['critical', 'high', 'medium', 'low']);
+    expect(VALID_CATEGORIES).toEqual(['secrets', 'injection', 'payment', 'auth']);
+  });
+
+  it('filters out rules with invalid severity or category and logs validation warnings', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const rules = await loadRules(tempRulesDir);
+    const ruleIds = rules.map(r => r.id);
+
+    expect(ruleIds).not.toContain('test/invalid-severity');
+    expect(ruleIds).not.toContain('test/invalid-category');
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('failed contract validation')
+    );
+
+    warnSpy.mockRestore();
   });
 });
