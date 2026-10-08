@@ -4,7 +4,7 @@
 > *Built for the Cybersecurity Hackathon — Theme: "Shipped Fast, Left Open"*
 
 [![Node.js Version](https://img.shields.io/badge/Node.js-20%2B-brightgreen.svg)](https://nodejs.org/)
-[![Test Suite](https://img.shields.io/badge/Vitest-162%20passed-success.svg)](https://vitest.dev/)
+[![Test Suite](https://img.shields.io/badge/Vitest-164%20passed-success.svg)](https://vitest.dev/)
 [![Language](https://img.shields.io/badge/Language-Modern%20ESM-yellow.svg)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
 [![License](https://img.shields.io/badge/License-ISC-blue.svg)](LICENSE)
 [![Architecture](https://img.shields.io/badge/Design-Zero--LLM%20Detection%20Core-orange.svg)](#core-architecture)

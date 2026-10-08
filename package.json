@@ -11,7 +11,9 @@
     "start": "node src/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "scan:demo": "node src/cli.js scan ./demo"
+    "scan:demo": "node src/cli.js scan ./demo",
+    "scan:fixed": "node src/cli.js scan ./demo-fixed",
+    "demo:compare": "node scripts/demo-compare.js"
   },
   "keywords": [
     "security",
