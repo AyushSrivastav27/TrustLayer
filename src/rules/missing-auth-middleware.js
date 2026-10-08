@@ -5,7 +5,8 @@ import { isExpressRoute, getExpressRouteDetails, extractSnippet } from '../utils
 import {
   AUTH_MIDDLEWARE_NAMES,
   SENSITIVE_ROUTE_PATTERNS,
-  PUBLIC_ROUTE_PATTERNS
+  PUBLIC_ROUTE_PATTERNS,
+  NON_EXPRESS_OBJECTS
 } from '../utils/patterns.js';
 
 const SENSITIVE_FILE_REGEX = /(?:^|\/)(?:routes?\/)?(orders?|checkout|payments?|cart|admin|billing|users?)(\.|\/|$)/i;
@@ -76,12 +77,6 @@ function isSensitiveRoute(routePath, filePath) {
   return false;
 }
 
-const NON_EXPRESS_OBJECTS = new Set([
-  'db', 'pool', 'connection', 'client', 'knex', 'sequelize', 'prisma',
-  'sqlite', 'stmt', 'statement', 'redis', 'cache',
-  'axios', 'http', 'https', 'fetch', 'fs', 'path', 'url', 'console',
-  'logger', 'log', 'Math', 'JSON', 'Object', 'Array', 'Promise'
-]);
 
 /**
  * Validates that a CallExpression is genuinely an Express route declaration.

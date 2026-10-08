@@ -2,7 +2,7 @@ import _traverse from '@babel/traverse';
 const traverse = _traverse.default || _traverse;
 import * as t from '@babel/types';
 import { isExpressRoute, getExpressRouteDetails, extractSnippet } from '../utils/ast-helpers.js';
-import { WEBHOOK_VERIFIERS } from '../utils/patterns.js';
+import { WEBHOOK_VERIFIERS, NON_EXPRESS_OBJECTS } from '../utils/patterns.js';
 
 const WEBHOOK_PATH_REGEX = /\/(webhook|stripe-webhook|payment-webhook|callback|ipn|notify)(\/|$)/i;
 const VERIFICATION_FUNC_REGEX = /(constructEvent|timingSafeEqual|verifyPaymentSignature|validateWebhookSignature|verifySignature|validateSignature|createHmac|verifyWebhook)/i;
@@ -96,12 +96,6 @@ function hasVerificationMiddleware(middlewares) {
   return false;
 }
 
-const NON_EXPRESS_OBJECTS = new Set([
-  'db', 'pool', 'connection', 'client', 'knex', 'sequelize', 'prisma',
-  'sqlite', 'stmt', 'statement', 'redis', 'cache',
-  'axios', 'http', 'https', 'fetch', 'fs', 'path', 'url', 'console',
-  'logger', 'log', 'Math', 'JSON', 'Object', 'Array', 'Promise'
-]);
 
 /**
  * Validates that a CallExpression is genuinely an Express route declaration.
