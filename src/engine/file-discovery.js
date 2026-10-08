@@ -23,7 +23,11 @@ const DEFAULT_IGNORE = [
 export async function discoverFiles(targetPath, options = {}) {
   const resolvedPath = path.resolve(targetPath);
 
-  if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error(`Target path does not exist: ${resolvedPath}`);
+  }
+
+  if (fs.statSync(resolvedPath).isFile()) {
     return [resolvedPath];
   }
 
