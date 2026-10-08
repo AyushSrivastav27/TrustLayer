@@ -17,9 +17,9 @@
 | `weak-crypto` | Member 2 | High | ✅ 9 | 🟡 Medium | 🟢 Low | Missing `des`/`rc4`, no HMAC check |
 | `sql-injection` | Member 3 | Critical | ✅ 7 | 🟢 High | 🟢 Low | ✅ Fully wired to `patterns.js` (`DB_SINKS`/`DB_OBJECTS`), safe ESM traverse, ORM tests |
 | `missing-input-validation` | Member 3 | High | ✅ 4 | 🟡 Medium | 🟢 Low | ✅ Scoped traverse bug fixed, low confidence assigned, accepts `typeof`/`!` & `validationResult` |
-| `payment-amount-tampering` | Member 4 | Critical | ✅ 8 | 🟢 High | 🟢 Low | ✅ Excellent implementation |
-| `missing-webhook-verification` | Member 4 | High | ✅ 9 | 🟢 High | 🟢 Low | ✅ Solid implementation |
-| `missing-auth-middleware` | Member 4 | High | ✅ 7 | 🟢 High | 🟡 Medium | Some FP edge cases |
+| `payment-amount-tampering` | Member 4 | Critical | ✅ 13 | 🟢 High | 🟢 Low | ✅ Narrowed `price` to numeric context, ignores catalog `priceId` & ID params |
+| `missing-webhook-verification` | Member 4 | High | ✅ 9 | 🟢 High | 🟢 Low | ✅ Shared `NON_EXPRESS_OBJECTS` from `patterns.js` |
+| `missing-auth-middleware` | Member 4 | High | ✅ 12 | 🟢 High | 🟢 Low | ✅ Tracks `app.use('/prefix', auth)` & global `app.use(auth)`, avoids FP |
 
 ---
 
@@ -231,51 +231,54 @@ Both `tests/rules/sql-injection.test.js` and `tests/rules/missing-input-validati
 
 ## Member 4 — `payment-amount-tampering.js`, `missing-webhook-verification.js`, `missing-auth-middleware.js`
 
-Member 4's work is the most complete and highest quality in the codebase. The rules are well-structured, use proper taint analysis, have good helper function decomposition, and the test suites are comprehensive. Issues found are minor enhancements.
+Member 4's work is the most complete and highest quality in the codebase. All three identified issues (M4-1, M4-2, M4-3) have been fully resolved, hardened, and verified with comprehensive unit tests.
 
-### 🟡 Issue M4-1 — `payment-amount-tampering.js`: `price` key on `req.body` may cause FP
+### ✅ Issue M4-1 (RESOLVED) — `payment-amount-tampering.js`: `price` key on `req.body` may cause FP
 
-**Severity: Low (False Positive Risk)**
+**Severity: Low (False Positive Risk) | Status: ✅ RESOLVED**
 
-`AMOUNT_KEYS` includes `'price'`. In many APIs, `price` is a catalog ID (e.g., Stripe Price ID), not a numeric amount. A pattern like:
+`AMOUNT_KEYS` includes `'price'`. In many APIs, `price` is a catalog ID (e.g., Stripe Price ID), not a numeric amount:
 
 ```javascript
 stripe.paymentIntents.create({ price: req.body.priceId }); // legitimate!
 ```
 
-…would be flagged as tampering, even though `price` here is a product ID, not an amount. The rule currently has no way to distinguish.
+Previously, this pattern would be flagged as tampering because `price` was checked unconditionally against client input.
 
-**Fix:** Consider removing `'price'` from `AMOUNT_KEYS` unless the value is a number, or check that the value is used in a numeric context (e.g., it goes through `Number()` or arithmetic).
-
----
-
-### 🟡 Issue M4-2 — `missing-webhook-verification.js`: `NON_EXPRESS_OBJECTS` duplicated
-
-**Severity: Low (Code Duplication / Maintainability)**
-
-Both [`missing-webhook-verification.js`](file:///home/jay/Documents/TrustLayer/src/rules/missing-webhook-verification.js#L99-L104) and [`missing-auth-middleware.js`](file:///home/jay/Documents/TrustLayer/src/rules/missing-auth-middleware.js#L79-L84) define identical `NON_EXPRESS_OBJECTS` sets:
-```javascript
-const NON_EXPRESS_OBJECTS = new Set([
-  'db', 'pool', 'connection', 'client', 'knex', ...
-]);
-```
-
-This should be a shared utility exported from `src/utils/ast-helpers.js` or `src/utils/patterns.js`.
-
-**Fix:** Export `NON_EXPRESS_OBJECTS` from `patterns.js` and import it in both rules.
+**Resolution:**
+- Added `isIdLike()` helper to detect ID-oriented property and identifier names (`priceId`, `price_id`, `paymentId`, etc.) and prevent them from being treated as monetary amounts.
+- Added `isNumericContext()` helper that checks whether expressions appear in arithmetic operations (`+`, `-`, `*`, `/`, `%`), unary numeric operators, or numeric conversions (`Number()`, `parseInt()`, `parseFloat()`, `Math.*`).
+- Introduced `isAmountProperty()`: when `propName === 'price'`, it is only treated as an amount if used in an explicit numeric context and not an ID, avoiding false positives on catalog price IDs.
+- Documented `AMOUNT_KEYS` in `src/utils/patterns.js` regarding the numeric context evaluation.
+- Added 4 new unit tests in `tests/rules/payment-amount-tampering.test.js` validating that catalog `priceId`, line item catalog prices, and `capture` payment IDs are ignored, while arithmetic/conversion amounts continue to be flagged.
 
 ---
 
-### 🟡 Issue M4-3 — `missing-auth-middleware.js`: router-level auth pass doesn't track `app` object
+### ✅ Issue M4-2 (RESOLVED) — `missing-webhook-verification.js`: `NON_EXPRESS_OBJECTS` duplicated
 
-**Severity: Low (False Negative)**
+**Severity: Low (Code Duplication / Maintainability) | Status: ✅ RESOLVED**
 
-The `protectedRouters` set tracks auth via `router.use(authenticate)` but doesn't handle the case where `app.use('/api', authenticate)` is called. If authentication is applied at the app-level with a path prefix, individual routes below that prefix will still be flagged.
+Both `missing-webhook-verification.js` and `missing-auth-middleware.js` previously defined duplicated `NON_EXPRESS_OBJECTS` sets.
 
-```javascript
-app.use('/api', authenticate); // applied globally
-app.get('/api/orders', handler); // falsely flagged as unprotected
-```
+**Resolution:**
+- Extracted `NON_EXPRESS_OBJECTS` set to `src/utils/patterns.js` alongside standard database and sink definitions.
+- Imported and reused `NON_EXPRESS_OBJECTS` across both rules (`src/rules/missing-webhook-verification.js` and `src/rules/missing-auth-middleware.js`).
+- Added unit test in `tests/utils/ast-helpers.test.js` validating the shared `NON_EXPRESS_OBJECTS` set.
+
+---
+
+### ✅ Issue M4-3 (RESOLVED) — `missing-auth-middleware.js`: router-level auth pass doesn't track `app` object
+
+**Severity: Low (False Negative / False Positive) | Status: ✅ RESOLVED**
+
+The rule previously tracked auth via `router.use(authenticate)` but did not handle `app.use('/api', authenticate)` or global `app.use(authenticate)`. Routes defined under a protected path prefix were falsely flagged as unprotected, and routes outside a path prefix were not cleanly differentiated.
+
+**Resolution:**
+- Implemented path prefix tracking (`protectedPrefixes`) and global app-level auth tracking (`hasGlobalAppAuth`).
+- Routes matching protected prefixes (e.g. `app.get('/api/orders', handler)` when `app.use('/api', authenticate)` is active) are recognized as protected.
+- Preserved sensitivity detection for routes outside the protected prefix (e.g. `app.get('/orders', handler)` when only `'/api'` is protected).
+- Handled router mounting under protected prefixes (`app.use('/api', authenticate, router)`).
+- Added 4 new unit tests in `tests/rules/missing-auth-middleware.test.js` covering prefix-based protection, prefix boundary isolation, global app auth, and mounted router auth.
 
 ---
 
@@ -307,7 +310,7 @@ app.get('/api/orders', handler); // falsely flagged as unprotected
 | P2-A | Add `des`/`rc4` cipher detection via `createCipheriv` visitor | `src/rules/weak-crypto.js` | Member 2 | 🔴 Pending |
 | P2-B | Raise entropy threshold to reduce false positives | `src/rules/hardcoded-secrets.js` | Member 2 | 🔴 Pending |
 | P2-C | Reduce false-positive rate of missing-input-validation (add `validationResult`, `if` guards) | `src/rules/missing-input-validation.js` | Member 3 | ✅ Resolved |
-| P2-D | Extract `NON_EXPRESS_OBJECTS` to shared `patterns.js` | `src/utils/patterns.js` | Member 4 / Team Lead | 🔴 Pending |
+| P2-D | Extract `NON_EXPRESS_OBJECTS` to shared `patterns.js` | `src/utils/patterns.js` | Member 4 / Team Lead | ✅ Resolved |
 
 ### Priority 3 — Nice to Have (Enhancements)
 
@@ -316,8 +319,8 @@ app.get('/api/orders', handler); // falsely flagged as unprotected
 | P3-A | Add tests for Razorpay/AWS keys in hardcoded-secrets | `tests/rules/hardcoded-secrets.test.js` | Member 2 | 🔴 Pending |
 | P3-B | Add `connection.execute`, `sequelize.query` tests for sql-injection | `tests/rules/sql-injection.test.js` | Member 3 | ✅ Resolved |
 | P3-C | Migrate test helpers to use shared `parseSource` | Both M3 test files | Member 3 | ✅ Resolved |
-| P3-D | Handle `app.use('/prefix', auth)` in missing-auth-middleware | `src/rules/missing-auth-middleware.js` | Member 4 | 🔴 Pending |
-| P3-E | Narrow `price` key in `AMOUNT_KEYS` to numeric-only contexts | `src/utils/patterns.js` | Member 4 | 🔴 Pending |
+| P3-D | Handle `app.use('/prefix', auth)` in missing-auth-middleware | `src/rules/missing-auth-middleware.js` | Member 4 | ✅ Resolved |
+| P3-E | Narrow `price` key in `AMOUNT_KEYS` to numeric-only contexts | `src/utils/patterns.js` | Member 4 | ✅ Resolved |
 
 ---
 
@@ -765,7 +768,7 @@ The version was previously hardcoded as `'1.0.0'` across 4 separate places in `s
 Member 1 (Team Lead / Engine):  🟢 Fully hardened & verified (All 9 issues resolved, 18 test files, 164/164 tests passing)
 Member 2 (Secrets/Crypto):      🟡 Functional but has correctness gap (unused patterns, missing prefix checks)
 Member 3 (Injection):           🟢 Hardened & verified (All 5 issues M3-1–M3-5 resolved, ESM interop safe, 11 tests passing)
-Member 4 (Auth/Payment):        🟢 Best quality in rules codebase — minor DRY and edge case fixes only
+Member 4 (Auth/Payment):        🟢 Fully hardened & verified (All 3 issues M4-1–M4-3 resolved, 34 tests passing across Member 4 suites)
 Member 5 (Reporting/Demo):      🟡 Strong foundation — reporter coupling, demo auth logic bug, brittle E2E count
 ```
 
