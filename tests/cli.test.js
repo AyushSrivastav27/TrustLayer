@@ -78,7 +78,7 @@ describe('CLI: resolveReportTarget unit tests', () => {
   });
 });
 
-describe('CLI: generateMarkdownReport fallback unit tests', () => {
+describe('CLI: generateMarkdownReport integrated reporter unit tests', () => {
   it('generates a clean scan report when there are no findings', () => {
     const report = {
       targetDirectory: '/test/dir',
@@ -92,9 +92,9 @@ describe('CLI: generateMarkdownReport fallback unit tests', () => {
     };
 
     const output = generateMarkdownReport(report);
-    expect(output).toContain('# 🔒 TrustLayer Security Report');
-    expect(output).toContain('## ✅ Clean Scan');
-    expect(output).toContain('No security issues were identified');
+    expect(output).toContain('TrustLayer Security Audit Report');
+    expect(output).toContain('Clean Scan');
+    expect(output).toContain('zero security findings');
   });
 
   it('generates detailed findings list with snippets and remediation when findings exist', () => {
@@ -122,7 +122,8 @@ describe('CLI: generateMarkdownReport fallback unit tests', () => {
     };
 
     const output = generateMarkdownReport(report);
-    expect(output).toContain('CRITICAL: Client-controlled payment amount detected');
+    expect(output).toContain('CRITICAL');
+    expect(output).toContain('Client-controlled payment amount detected');
     expect(output).toContain('payment/client-controlled-amount');
     expect(output).toContain('const amount = req.body.amount;');
     expect(output).toContain('Attackers can manipulate the order amount.');

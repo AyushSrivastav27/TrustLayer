@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import { scan } from './engine/scanner.js';
+import { generateMarkdownReport } from './reporters/markdown-reporter.js';
 
 const program = new Command();
 
@@ -71,55 +72,6 @@ export function resolveReportTarget(outputOption, formatOption) {
     filePath: path.resolve(process.cwd(), rawPath),
     format
   };
-}
-
-/**
- * Generates a Markdown report from scan findings.
- *
- * @param {import('./types/report.js').ScanReport} report
- * @returns {string}
- */
-export function generateMarkdownReport(report) {
-  const { summary, findings, targetDirectory, scanDate } = report;
-  const sev = summary.severities;
-
-  let md = `# 🔒 TrustLayer Security Report\n\n`;
-  md += `**Target**: \`${targetDirectory}\`  \n`;
-  md += `**Scan Date**: ${scanDate}  \n`;
-  md += `**Total Scanned Files**: ${summary.totalFiles}  \n`;
-  md += `**Total Findings**: ${summary.totalFindings}  \n`;
-  md += `**Summary**: 🔴 Critical: ${sev.critical} | 🟠 High: ${sev.high} | 🟡 Medium: ${sev.medium} | 🔵 Low: ${sev.low}\n\n`;
-  md += `---\n\n`;
-
-  if (findings.length === 0) {
-    md += `## ✅ Clean Scan\n\nNo security issues were identified in this scan.\n`;
-    return md;
-  }
-
-  for (const finding of findings) {
-    const icon = SEVERITY_ICONS[finding.severity] || '⚪';
-    const relFile = path.relative(process.cwd(), finding.file) || finding.file;
-    md += `### ${icon} ${finding.severity.toUpperCase()}: ${finding.message}\n\n`;
-    md += `- **File**: \`${relFile}:${finding.line}\`\n`;
-    md += `- **Rule ID**: \`${finding.ruleId}\`\n`;
-    md += `- **Confidence**: ${finding.confidence || 'high'}\n\n`;
-
-    if (finding.codeSnippet) {
-      md += `#### Vulnerable Code\n\`\`\`javascript\n${finding.codeSnippet}\n\`\`\`\n\n`;
-    }
-
-    if (finding.explanation) {
-      md += `#### Why This Is Dangerous\n${finding.explanation}\n\n`;
-    }
-
-    if (finding.remediation) {
-      md += `#### Recommended Remediation\n\`\`\`javascript\n${finding.remediation}\n\`\`\`\n\n`;
-    }
-
-    md += `---\n\n`;
-  }
-
-  return md;
 }
 
 const EXAMPLES_HELP = `
@@ -243,18 +195,7 @@ program
         if (format === 'json') {
           reportContent = JSON.stringify(report, null, 2);
         } else {
-          try {
-            const reporterModule = await import('./reporters/markdown-reporter.js');
-            if (typeof reporterModule.generateMarkdownReport === 'function') {
-              reportContent = reporterModule.generateMarkdownReport(report);
-            } else if (typeof reporterModule.default === 'function') {
-              reportContent = reporterModule.default(report);
-            } else {
-              reportContent = generateMarkdownReport(report);
-            }
-          } catch {
-            reportContent = generateMarkdownReport(report);
-          }
+          reportContent = generateMarkdownReport(report);
         }
 
         await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -288,4 +229,4 @@ if (isDirectRun) {
   program.parse(process.argv);
 }
 
-export { program };
+export { program, generateMarkdownReport };
