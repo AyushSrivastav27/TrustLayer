@@ -78,12 +78,13 @@ describe('Engine: ast-parser (parseSource)', () => {
     expect(ast.program.body).toHaveLength(0);
   });
 
-  it('accepts optional filePath argument', () => {
+  it('accepts optional filePath argument and sets sourceFilename in AST loc', () => {
     const code = 'const x = 42;';
     const { ast, error } = parseSource(code, 'src/example.js');
 
     expect(error).toBeNull();
     expect(ast).not.toBeNull();
+    expect(ast.loc?.filename).toBe('src/example.js');
   });
 
   it('catches invalid non-string input and returns null ast with error', () => {

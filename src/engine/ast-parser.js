@@ -12,7 +12,8 @@ export function parseSource(sourceCode, filePath = '') {
     const ast = babelParser.parse(sourceCode, {
       sourceType: 'unambiguous',
       plugins: ['jsx'],
-      errorRecovery: true
+      errorRecovery: true,
+      sourceFilename: filePath || undefined
     });
     return { ast, error: null };
   } 
