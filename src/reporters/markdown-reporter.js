@@ -22,8 +22,8 @@ const SEVERITY_ICONS = {
  * @param {string} [filePath]
  * @returns {string}
  */
-function formatDisplayPath(filePath) {
-  if (!filePath) return 'unknown';
+export function formatDisplayPath(filePath) {
+  if (!filePath || typeof filePath !== 'string') return 'unknown';
   if (path.isAbsolute(filePath)) {
     return path.relative(process.cwd(), filePath) || filePath;
   }

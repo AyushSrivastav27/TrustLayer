@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { generateMarkdownReport } from '../../src/reporters/markdown-reporter.js';
+import path from 'node:path';
+import { generateMarkdownReport, formatDisplayPath } from '../../src/reporters/markdown-reporter.js';
 
 describe('Reporter: markdown-reporter', () => {
   const sampleReport = {
@@ -280,4 +281,52 @@ describe('Reporter: markdown-reporter', () => {
       expect(JSON.stringify(reportCopy)).toBe(originalJson);
     });
   });
+
+  describe('M5-9 Contradiction & Worst-Case Scenario Tests (formatDisplayPath)', () => {
+    it('contradiction: non-string and falsy paths return "unknown" without throwing TypeError', () => {
+      expect(formatDisplayPath(null)).toBe('unknown');
+      expect(formatDisplayPath(undefined)).toBe('unknown');
+      expect(formatDisplayPath('')).toBe('unknown');
+      expect(formatDisplayPath(12345)).toBe('unknown');
+      expect(formatDisplayPath(true)).toBe('unknown');
+      expect(formatDisplayPath({})).toBe('unknown');
+      expect(formatDisplayPath([])).toBe('unknown');
+      expect(formatDisplayPath(Symbol('path'))).toBe('unknown');
+    });
+
+    it('contradiction: relative paths are strictly preserved without being mangled by path.relative(cwd, rel)', () => {
+      expect(formatDisplayPath('routes/checkout.js')).toBe('routes/checkout.js');
+      expect(formatDisplayPath('src/rules/sql-injection.js')).toBe('src/rules/sql-injection.js');
+      expect(formatDisplayPath('./routes/checkout.js')).toBe('./routes/checkout.js');
+      expect(formatDisplayPath('nested/dir/file.ts')).toBe('nested/dir/file.ts');
+    });
+
+    it('worst-case: absolute path exactly matching process.cwd() returns clean fallback instead of empty string', () => {
+      const cwd = process.cwd();
+      expect(formatDisplayPath(cwd)).toBe(cwd);
+    });
+
+    it('worst-case: deep absolute paths inside cwd are normalized to clean relative paths', () => {
+      const nestedAbs = path.join(process.cwd(), 'deep', 'nested', 'vuln.js');
+      expect(formatDisplayPath(nestedAbs)).toBe(path.relative(process.cwd(), nestedAbs));
+    });
+
+    it('worst-case: markdown reporter integration handles findings with malformed, non-string, and relative paths without crash', () => {
+      const mixedPathsReport = {
+        summary: { totalFiles: 3, totalFindings: 3, severities: { critical: 3, high: 0, medium: 0, low: 0 } },
+        findings: [
+          { ruleId: 'rule/1', severity: 'critical', file: null, line: 1 },
+          { ruleId: 'rule/2', severity: 'critical', file: 9999, line: 5 },
+          { ruleId: 'rule/3', severity: 'critical', file: 'already/relative.js', line: 12 }
+        ]
+      };
+
+      const md = generateMarkdownReport(mixedPathsReport);
+      expect(md).toContain('`unknown:1`');
+      expect(md).toContain('`unknown:5`');
+      expect(md).toContain('`already/relative.js:12`');
+      expect(md).not.toContain('../../already');
+    });
+  });
 });
+
