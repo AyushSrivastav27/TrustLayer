@@ -109,4 +109,27 @@ describe('Engine: ast-parser (parseSource)', () => {
       expect(result.ast.errors?.length).toBeGreaterThan(0);
     }
   });
+
+  it('parses TypeScript interfaces, types, and generic functions cleanly', () => {
+    const tsCode = `
+      interface PaymentIntent {
+        amount: number;
+        currency: string;
+      }
+
+      type UserId = string | number;
+
+      function processOrder<T extends PaymentIntent>(order: T, id: UserId): Promise<boolean> {
+        return Promise.resolve(order.amount > 0);
+      }
+    `;
+    const { ast, error } = parseSource(tsCode, 'server/checkout.ts');
+
+    expect(error).toBeNull();
+    expect(ast).not.toBeNull();
+    expect(ast.program.body.some(node => node.type === 'TSInterfaceDeclaration')).toBe(true);
+    expect(ast.program.body.some(node => node.type === 'TSTypeAliasDeclaration')).toBe(true);
+    expect(ast.program.body.some(node => node.type === 'FunctionDeclaration')).toBe(true);
+  });
 });
+

@@ -11,7 +11,7 @@ export function parseSource(sourceCode, filePath = '') {
   try {
     const ast = babelParser.parse(sourceCode, {
       sourceType: 'unambiguous',
-      plugins: ['jsx'],
+      plugins: ['jsx', 'typescript'],
       errorRecovery: true,
       sourceFilename: filePath || undefined
     });

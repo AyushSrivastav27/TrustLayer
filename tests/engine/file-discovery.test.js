@@ -50,6 +50,12 @@ describe('Engine: file-discovery (discoverFiles)', () => {
     await fs.writeFile(path.join(tempDir, 'README.md'), '# Readme');
     await fs.writeFile(path.join(tempDir, 'config.json'), '{}');
 
+    // TypeScript and JSX scannable files
+    await fs.writeFile(path.join(tempDir, 'service.ts'), 'export const s = 2;');
+    await fs.writeFile(path.join(tempDir, 'component.tsx'), 'export const c = () => null;');
+    await fs.writeFile(path.join(tempDir, 'types.d.ts'), 'declare const d: number;');
+    await fs.writeFile(path.join(tempDir, 'service.test.ts'), '// test ts');
+
     // Custom folder to test custom ignore option
     const customDir = path.join(tempDir, 'vendor');
     await fs.mkdir(customDir, { recursive: true });
@@ -138,4 +144,15 @@ describe('Engine: file-discovery (discoverFiles)', () => {
     const nonExistent = path.join(tempDir, 'non-existent-path');
     await expect(discoverFiles(nonExistent)).rejects.toThrow('Target path does not exist');
   });
+
+  it('discovers TypeScript (.ts, .tsx) files while ignoring .d.ts and test files', async () => {
+    const files = await discoverFiles(tempDir);
+    const relativePaths = files.map(f => path.relative(tempDir, f).replace(/\\/g, '/'));
+
+    expect(relativePaths).toContain('service.ts');
+    expect(relativePaths).toContain('component.tsx');
+    expect(relativePaths).not.toContain('types.d.ts');
+    expect(relativePaths).not.toContain('service.test.ts');
+  });
 });
+
