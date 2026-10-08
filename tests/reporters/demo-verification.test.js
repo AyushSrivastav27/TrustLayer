@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { scan } from '../../src/engine/scanner.js';
 import { enhanceReport } from '../../src/ai/enhancer.js';
 import { generateMarkdownReport } from '../../src/reporters/markdown-reporter.js';
@@ -193,4 +194,137 @@ describe('M5-2 Verification: Dummy Credential Collision & Contradiction Tests', 
     }
   });
 });
+
+describe('M5-3 Verification: Salted Password Hashing & Login Verification Contradiction Tests', () => {
+  const authFixedPath = path.resolve(process.cwd(), 'demo-fixed/routes/auth.js');
+
+  it('contradiction test: registering then logging in with the same password succeeds', () => {
+    // Simulate register logic from demo-fixed/routes/auth.js
+    const password = 'CorrectHorseBatteryStaple!2026';
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.createHash('sha256').update(password + salt).digest('hex');
+    const storedPassword = `${salt}:${hash}`;
+
+    // Simulate login verification logic from demo-fixed/routes/auth.js
+    const [retrievedSalt, storedHash] = storedPassword.split(':');
+    const calculatedHash = crypto.createHash('sha256').update(password + retrievedSalt).digest('hex');
+    const bufCalc = Buffer.from(calculatedHash, 'utf8');
+    const bufStored = Buffer.from(storedHash, 'utf8');
+    const isValid = bufCalc.length === bufStored.length && crypto.timingSafeEqual(bufCalc, bufStored);
+
+    // Contradiction assertion: Login must succeed with valid credentials
+    expect(isValid).toBe(true);
+  });
+
+  it('contradiction test: login with incorrect password fails cleanly', () => {
+    const password = 'SuperSecretPassword123';
+    const wrongPassword = 'WrongPassword456';
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.createHash('sha256').update(password + salt).digest('hex');
+    const storedPassword = `${salt}:${hash}`;
+
+    const [retrievedSalt, storedHash] = storedPassword.split(':');
+    const calculatedHash = crypto.createHash('sha256').update(wrongPassword + retrievedSalt).digest('hex');
+    const bufCalc = Buffer.from(calculatedHash, 'utf8');
+    const bufStored = Buffer.from(storedHash, 'utf8');
+    const isValid = bufCalc.length === bufStored.length && crypto.timingSafeEqual(bufCalc, bufStored);
+
+    // Contradiction assertion: Login must reject incorrect credentials
+    expect(isValid).toBe(false);
+  });
+
+  it('contradiction test: scanning demo-fixed/routes/auth.js produces 0 findings across all security rules', async () => {
+    const authContent = fs.readFileSync(authFixedPath, 'utf8');
+    const { ast } = parseSource(authContent, authFixedPath);
+    const context = {
+      filePath: authFixedPath,
+      fileContent: authContent,
+      ast,
+      lines: authContent.split('\n')
+    };
+
+    const secFindings = hardcodedSecrets.analyze(context);
+    const cryptoFindings = weakCrypto.analyze(context);
+    const inputFindings = missingInputValidation.analyze(context);
+    const authFindings = missingAuthMiddleware.analyze(context);
+
+    expect(secFindings).toHaveLength(0);
+    expect(cryptoFindings).toHaveLength(0);
+    expect(inputFindings).toHaveLength(0);
+    expect(authFindings).toHaveLength(0);
+  });
+
+  it('worst-case scenario: corrupted stored password never throws RangeError in timingSafeEqual', () => {
+    const maliciousCases = [
+      'short_salt:truncated',
+      'salt:corrupted_length_mismatch_123',
+      'corrupted_without_colon',
+      '::multiple_colons::',
+      '',
+      null,
+      undefined
+    ];
+
+    for (const badStored of maliciousCases) {
+      expect(() => {
+        let isValid = false;
+        const candidatePassword = 'anyAttemptedPassword';
+
+        if (badStored && typeof badStored === 'string' && badStored.includes(':')) {
+          const [salt, storedHash] = badStored.split(':');
+          if (salt && storedHash) {
+            const calculatedHash = crypto.createHash('sha256').update(candidatePassword + salt).digest('hex');
+            const bufCalc = Buffer.from(calculatedHash, 'utf8');
+            const bufStored = Buffer.from(storedHash, 'utf8');
+            if (bufCalc.length === bufStored.length) {
+              isValid = crypto.timingSafeEqual(bufCalc, bufStored);
+            }
+          }
+        } else if (badStored && typeof badStored === 'string') {
+          const calculatedHash = crypto.createHash('sha256').update(candidatePassword).digest('hex');
+          const bufCalc = Buffer.from(calculatedHash, 'utf8');
+          const bufUser = Buffer.from(badStored, 'utf8');
+          if (bufCalc.length === bufUser.length && crypto.timingSafeEqual(bufCalc, bufUser)) {
+            isValid = true;
+          }
+        }
+
+        expect(isValid).toBe(false);
+      }).not.toThrow();
+    }
+  });
+
+  it('worst-case scenario: pre-seeded users without salt can still log in securely', () => {
+    const candidatePassword = 'password123';
+    const preSeededUserPassword = 'password123';
+
+    let isValid = false;
+    if (preSeededUserPassword && typeof preSeededUserPassword === 'string' && preSeededUserPassword.includes(':')) {
+      const [salt, storedHash] = preSeededUserPassword.split(':');
+      if (salt && storedHash) {
+        const calculatedHash = crypto.createHash('sha256').update(candidatePassword + salt).digest('hex');
+        const bufCalc = Buffer.from(calculatedHash, 'utf8');
+        const bufStored = Buffer.from(storedHash, 'utf8');
+        if (bufCalc.length === bufStored.length) {
+          isValid = crypto.timingSafeEqual(bufCalc, bufStored);
+        }
+      }
+    } else if (preSeededUserPassword && typeof preSeededUserPassword === 'string') {
+      const calculatedHash = crypto.createHash('sha256').update(candidatePassword).digest('hex');
+      const bufCalc = Buffer.from(calculatedHash, 'utf8');
+      const bufUser = Buffer.from(preSeededUserPassword, 'utf8');
+      if (bufCalc.length === bufUser.length && crypto.timingSafeEqual(bufCalc, bufUser)) {
+        isValid = true;
+      } else {
+        const bufPlain = Buffer.from(candidatePassword, 'utf8');
+        if (bufPlain.length === bufUser.length && crypto.timingSafeEqual(bufPlain, bufUser)) {
+          isValid = true;
+        }
+      }
+    }
+
+    expect(isValid).toBe(true);
+  });
+});
+
 

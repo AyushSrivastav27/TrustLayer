@@ -63,14 +63,29 @@ router.post('/login', (req, res) => {
   }
 
   let isValid = false;
-  if (user.password && user.password.includes(':')) {
+  if (user.password && typeof user.password === 'string' && user.password.includes(':')) {
     const [salt, storedHash] = user.password.split(':');
-    const calculatedHash = crypto.createHash('sha256').update(password + salt).digest('hex');
-    isValid = crypto.timingSafeEqual(Buffer.from(calculatedHash), Buffer.from(storedHash));
-  } else if (user.password) {
-    // Support pre-seeded demo users hashed with standard SHA-256
+    if (salt && storedHash) {
+      const calculatedHash = crypto.createHash('sha256').update(password + salt).digest('hex');
+      const bufCalc = Buffer.from(calculatedHash, 'utf8');
+      const bufStored = Buffer.from(storedHash, 'utf8');
+      if (bufCalc.length === bufStored.length) {
+        isValid = crypto.timingSafeEqual(bufCalc, bufStored);
+      }
+    }
+  } else if (user.password && typeof user.password === 'string') {
+    // Support pre-seeded demo users hashed with standard SHA-256 or plaintext
     const calculatedHash = crypto.createHash('sha256').update(password).digest('hex');
-    isValid = crypto.timingSafeEqual(Buffer.from(calculatedHash), Buffer.from(user.password));
+    const bufCalc = Buffer.from(calculatedHash, 'utf8');
+    const bufUser = Buffer.from(user.password, 'utf8');
+    if (bufCalc.length === bufUser.length && crypto.timingSafeEqual(bufCalc, bufUser)) {
+      isValid = true;
+    } else {
+      const bufPlain = Buffer.from(password, 'utf8');
+      if (bufPlain.length === bufUser.length && crypto.timingSafeEqual(bufPlain, bufUser)) {
+        isValid = true;
+      }
+    }
   }
 
   if (!isValid) {
