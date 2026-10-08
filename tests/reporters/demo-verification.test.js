@@ -386,5 +386,56 @@ describe('M5-7 Verification: Products Route SQL Injection Alignment Contradictio
   });
 });
 
+describe('M5-8 Verification: E2E Finding Assertion Robustness & Regression Masking Tests', () => {
+  const demoRoutesPath = path.resolve(process.cwd(), 'demo/routes');
+
+  it('contradiction test: all 7 canonical vulnerability rule categories are strictly present', async () => {
+    const report = await scan(demoRoutesPath, { rules });
+
+    // Exact canonical rule categories required for the demo
+    const expectedRules = [
+      'payment/payment-amount-tampering',
+      'payment/missing-webhook-verification',
+      'injection/sql-injection',
+      'injection/missing-input-validation',
+      'secrets/hardcoded-secrets',
+      'crypto/weak-crypto',
+      'auth/missing-auth-middleware'
+    ];
+
+    const detectedRuleIds = new Set(report.findings.map(f => f.ruleId));
+
+    // Contradiction assertion: Missing any single category fails the demo contract
+    for (const expectedRule of expectedRules) {
+      expect(detectedRuleIds.has(expectedRule)).toBe(true);
+    }
+  });
+
+  it('contradiction test: all detected vulnerabilities must satisfy critical or high severity floor', async () => {
+    const report = await scan(demoRoutesPath, { rules });
+
+    expect(report.findings.length).toBeGreaterThanOrEqual(8);
+    expect(report.summary.severities.critical).toBeGreaterThanOrEqual(3);
+    expect(report.summary.severities.high).toBeGreaterThanOrEqual(5);
+
+    // No low or informational findings should pollute the canonical demo finding counts
+    for (const f of report.findings) {
+      expect(['critical', 'high']).toContain(f.severity);
+    }
+  });
+
+  it('worst-case scenario: simulated defective rule array missing a critical rule is correctly flagged', async () => {
+    // Deliberately omit hardcodedSecrets to simulate a regression in scanner rules
+    const incompleteRules = rules.filter(r => r.id !== 'secrets/hardcoded-secrets');
+    const report = await scan(demoRoutesPath, { rules: incompleteRules });
+
+    const ruleIds = report.findings.map(f => f.ruleId);
+    // Verifies that assertions do NOT falsely pass if a rule fails to trigger
+    expect(ruleIds).not.toContain('secrets/hardcoded-secrets');
+    expect(report.summary.severities.critical).toBeLessThan(3);
+  });
+});
+
+
 
 
