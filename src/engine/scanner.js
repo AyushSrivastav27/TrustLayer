@@ -1,9 +1,24 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { discoverFiles } from './file-discovery.js';
 import { parseSource } from './ast-parser.js';
 import { loadRules } from './rule-registry.js';
 import { calculateSeverityCounts } from '../types/report.js';
+
+let packageVersion = '1.0.0';
+try {
+  const pkgPath = fileURLToPath(new URL('../../package.json', import.meta.url));
+  const pkg = JSON.parse(fsSync.readFileSync(pkgPath, 'utf-8'));
+  if (pkg && pkg.version) {
+    packageVersion = pkg.version;
+  }
+} catch {
+  // fallback if package.json cannot be read
+}
+
+export const SCANNER_VERSION = packageVersion;
 
 /**
  * Scans a single file against an array of rules.
@@ -94,7 +109,7 @@ export async function scan(targetPath, options = {}) {
   const severities = calculateSeverityCounts(allFindings);
 
   return {
-    scannerVersion: '1.0.0',
+    scannerVersion: SCANNER_VERSION,
     scanDate: new Date().toISOString(),
     targetDirectory: resolvedTarget,
     summary: {

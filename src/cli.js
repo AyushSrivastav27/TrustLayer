@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
-import { scan } from './engine/scanner.js';
+import { scan, SCANNER_VERSION } from './engine/scanner.js';
 import { generateMarkdownReport } from './reporters/markdown-reporter.js';
 
 const program = new Command();
@@ -32,7 +32,7 @@ const SUPPORTED_FORMATS = ['markdown', 'md', 'json'];
 
 function printBanner() {
   console.log(chalk.cyan.bold(ANSI_SHADOW_BANNER));
-  console.log(chalk.bold.white(' 🔍 TrustLayer Static Security Scanner v1.0.0'));
+  console.log(chalk.bold.white(` 🔍 TrustLayer Static Security Scanner v${SCANNER_VERSION}`));
   console.log(chalk.gray('    Deterministic AST & Data-Flow Analysis for Node.js/Express'));
   console.log(chalk.gray(' ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n'));
 }
@@ -88,7 +88,7 @@ Examples:
 program
   .name('trustlayer')
   .description('Deterministic static security scanner for Node.js/Express APIs')
-  .version('1.0.0')
+  .version(SCANNER_VERSION)
   .addHelpText('after', EXAMPLES_HELP);
 
 program

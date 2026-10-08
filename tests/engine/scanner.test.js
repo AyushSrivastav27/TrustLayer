@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { scanFile, scan } from '../../src/engine/scanner.js';
+import { scanFile, scan, SCANNER_VERSION } from '../../src/engine/scanner.js';
 
 describe('Engine: scanner', () => {
   let tempScanDir;
@@ -159,6 +159,7 @@ describe('Engine: scanner', () => {
         rules: [mockVulnerableRule, mockCleanRule]
       });
 
+      expect(report.scannerVersion).toBe(SCANNER_VERSION);
       expect(report.scannerVersion).toBe('1.0.0');
       expect(report.scanDate).toBeDefined();
       expect(new Date(report.scanDate).toString()).not.toBe('Invalid Date');
