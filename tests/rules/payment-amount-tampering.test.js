@@ -144,4 +144,57 @@ describe('Rule: payment/payment-amount-tampering', () => {
     });
     expect(findings).toEqual([]);
   });
+
+  it('ignores catalog priceId in stripe.paymentIntents.create (Issue M4-1 true negative)', () => {
+    const code = `
+      router.post('/checkout', async (req, res) => {
+        const intent = await stripe.paymentIntents.create({
+          price: req.body.priceId
+        });
+        res.json(intent);
+      });
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(0);
+  });
+
+  it('ignores non-numeric price catalog string in stripe checkout session line items (true negative)', () => {
+    const code = `
+      router.post('/checkout', async (req, res) => {
+        const session = await stripe.checkout.sessions.create({
+          line_items: [{ price: req.body.price, quantity: 1 }]
+        });
+        res.json(session);
+      });
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(0);
+  });
+
+  it('flags price when used in numeric context arithmetic or conversion (true positive)', () => {
+    const code = `
+      router.post('/checkout', async (req, res) => {
+        const intent = await stripe.charges.create({
+          amount: Number(req.body.price),
+          currency: 'usd'
+        });
+        res.json(intent);
+      });
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('critical');
+  });
+
+  it('ignores paymentId in razorpay.payments.capture when amount is server-calculated (true negative)', () => {
+    const code = `
+      router.post('/capture', async (req, res) => {
+        const result = await razorpay.payments.capture(req.body.paymentId, 2500);
+        res.json(result);
+      });
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(0);
+  });
 });
+

@@ -167,6 +167,92 @@ function isTaintedByClient(node, scope, visitedBindings = new Set()) {
 }
 
 /**
+ * Checks if an AST node represents an ID identifier or property rather than a monetary amount.
+ *
+ * @param {object} node - Babel AST node
+ * @returns {boolean}
+ */
+function isIdLike(node) {
+  if (!node) return false;
+  if (t.isIdentifier(node)) {
+    return /(?:[a-z0-9]Id|_id)$/i.test(node.name) || /^(id|paymentId|priceId|productId|orderId|customerId)$/i.test(node.name);
+  }
+  if (t.isMemberExpression(node)) {
+    const prop = node.property;
+    if (t.isIdentifier(prop)) {
+      return /(?:[a-z0-9]Id|_id)$/i.test(prop.name) || /^(id|paymentId|priceId|productId|orderId|customerId)$/i.test(prop.name);
+    }
+    if (t.isStringLiteral(prop)) {
+      return /(?:[a-z0-9]Id|_id)$/i.test(prop.value) || /^(id|paymentId|priceId|productId|orderId|customerId)$/i.test(prop.value);
+    }
+  }
+  return false;
+}
+
+/**
+ * Checks if an expression appears in a numeric context (arithmetic, unary +, or Number conversion).
+ *
+ * @param {object} node - Babel AST node
+ * @param {object} scope - Babel Scope object
+ * @returns {boolean}
+ */
+function isNumericContext(node, scope) {
+  if (!node) return false;
+  if (t.isBinaryExpression(node) && ['*', '/', '+', '-', '%'].includes(node.operator)) {
+    return true;
+  }
+  if (t.isUnaryExpression(node) && (node.operator === '+' || node.operator === '-')) {
+    return true;
+  }
+  if (t.isCallExpression(node)) {
+    const { callee } = node;
+    if (t.isIdentifier(callee) && ['Number', 'parseInt', 'parseFloat'].includes(callee.name)) {
+      return true;
+    }
+    if (t.isMemberExpression(callee) && t.isIdentifier(callee.object) && callee.object.name === 'Math') {
+      return true;
+    }
+  }
+  if (t.isNumericLiteral(node)) {
+    return true;
+  }
+  if (t.isIdentifier(node) && scope) {
+    const binding = scope.getBinding(node.name);
+    if (binding && binding.path && binding.path.isVariableDeclarator()) {
+      return isNumericContext(binding.path.node.init, binding.scope);
+    }
+  }
+  return false;
+}
+
+/**
+ * Determines whether a property name and its associated value expression represent
+ * an authentic monetary amount rather than a catalog/price ID.
+ *
+ * @param {string} propName - Name of the property in the payment call
+ * @param {object} valueNode - Node representing the value assigned to the property
+ * @param {object} scope - Babel Scope object
+ * @returns {boolean}
+ */
+function isAmountProperty(propName, valueNode, scope) {
+  if (!propName) return false;
+  const isAmountKey = AMOUNT_KEYS.includes(propName) || propName === 'unit_amount';
+  if (!isAmountKey) return false;
+
+  // If the property is 'price', only treat as amount if used in numeric context
+  // and not an explicit ID (e.g. priceId, price_id) to avoid false positives on catalog price IDs
+  if (propName === 'price') {
+    if (isIdLike(valueNode)) return false;
+    return isNumericContext(valueNode, scope);
+  }
+
+  // Any explicit ID property is not an amount
+  if (isIdLike(valueNode)) return false;
+
+  return true;
+}
+
+/**
  * Inspects arguments passed to a payment sink call to find client-controlled amounts.
  *
  * @param {object} callNode - Babel CallExpression node
@@ -185,26 +271,31 @@ function inspectPaymentSinkArguments(callNode, scope) {
         if (t.isObjectProperty(prop)) {
           const propName = t.isIdentifier(prop.key) ? prop.key.name : (t.isStringLiteral(prop.key) ? prop.key.value : null);
 
-          // Direct amount property: amount, price, total, cost, subtotal
-          if (propName && AMOUNT_KEYS.includes(propName)) {
+          // Direct amount property: amount, price (numeric context only), total, cost, subtotal
+          if (propName && isAmountProperty(propName, prop.value, scope)) {
             if (isTaintedByClient(prop.value, scope)) {
               return { isTampered: true, offendingNode: prop };
             }
           }
 
           // Nested structures like line_items: [{ price_data: { unit_amount: req.body.amount } }]
+          // or line_items: [{ price: req.body.priceId }] (catalog price IDs ignored)
           if (t.isArrayExpression(prop.value)) {
             for (const elem of prop.value.elements) {
               if (t.isObjectExpression(elem)) {
                 for (const nestedProp of elem.properties) {
                   if (t.isObjectProperty(nestedProp)) {
+                    const nestedPropName = t.isIdentifier(nestedProp.key) ? nestedProp.key.name : (t.isStringLiteral(nestedProp.key) ? nestedProp.key.value : null);
                     if (t.isObjectExpression(nestedProp.value)) {
                       for (const deepProp of nestedProp.value.properties) {
-                        if (t.isObjectProperty(deepProp) && isTaintedByClient(deepProp.value, scope)) {
-                          return { isTampered: true, offendingNode: deepProp };
+                        if (t.isObjectProperty(deepProp)) {
+                          const deepPropName = t.isIdentifier(deepProp.key) ? deepProp.key.name : (t.isStringLiteral(deepProp.key) ? deepProp.key.value : null);
+                          if (isAmountProperty(deepPropName, deepProp.value, scope) && isTaintedByClient(deepProp.value, scope)) {
+                            return { isTampered: true, offendingNode: deepProp };
+                          }
                         }
                       }
-                    } else if (isTaintedByClient(nestedProp.value, scope)) {
+                    } else if (isAmountProperty(nestedPropName, nestedProp.value, scope) && isTaintedByClient(nestedProp.value, scope)) {
                       return { isTampered: true, offendingNode: nestedProp };
                     }
                   }
@@ -217,7 +308,7 @@ function inspectPaymentSinkArguments(callNode, scope) {
     }
 
     // 2. Direct amount identifier or expression: razorpay.payments.capture(id, req.body.amount)
-    if (isTaintedByClient(arg, scope)) {
+    if (!isIdLike(arg) && isTaintedByClient(arg, scope)) {
       return { isTampered: true, offendingNode: arg };
     }
 
@@ -230,7 +321,7 @@ function inspectPaymentSinkArguments(callNode, scope) {
           for (const prop of init.properties) {
             if (t.isObjectProperty(prop)) {
               const propName = t.isIdentifier(prop.key) ? prop.key.name : (t.isStringLiteral(prop.key) ? prop.key.value : null);
-              if (propName && AMOUNT_KEYS.includes(propName) && isTaintedByClient(prop.value, binding.scope)) {
+              if (propName && isAmountProperty(propName, prop.value, binding.scope) && isTaintedByClient(prop.value, binding.scope)) {
                 return { isTampered: true, offendingNode: prop };
               }
             }

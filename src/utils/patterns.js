@@ -6,6 +6,7 @@
 export const HTTP_SOURCES = ['body', 'query', 'params', 'headers', 'cookies'];
 
 // Sensitive payment amount/price keys
+// Note: 'price' is evaluated in numeric contexts by payment rules to distinguish monetary amounts from catalog/Price IDs
 export const AMOUNT_KEYS = [
   'amount',
   'price',
