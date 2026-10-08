@@ -74,13 +74,76 @@ describe('Rule: crypto/weak-crypto', () => {
       expect(findings.length).toBe(1);
       expect(findings[0].message).toContain("Insecure randomness (Math.random) used for security-sensitive variable 'secretKey'");
     });
+
+    it('should detect obsolete DES cipher algorithm', () => {
+      const code = `
+        const cipher = crypto.createCipheriv('des-cbc', key, iv);
+      `;
+      const context = createTestContext(code);
+
+      const findings = rule.analyze(context);
+      expect(findings.length).toBe(1);
+      expect(findings[0].message).toContain('Weak cipher algorithm used: des-cbc');
+      expect(findings[0].confidence).toBe('high');
+    });
+
+    it('should detect obsolete RC4 cipher algorithm', () => {
+      const code = `
+        const cipher = crypto.createCipher('rc4', password);
+      `;
+      const context = createTestContext(code);
+
+      const findings = rule.analyze(context);
+      expect(findings.length).toBe(1);
+      expect(findings[0].message).toContain('Weak cipher algorithm used: rc4');
+      expect(findings[0].confidence).toBe('high');
+    });
+
+    it('should detect obsolete hashing in HMAC', () => {
+      const code = `
+        const hmac = crypto.createHmac('md5', secretKey).update(data).digest('hex');
+      `;
+      const context = createTestContext(code);
+
+      const findings = rule.analyze(context);
+      expect(findings.length).toBe(1);
+      expect(findings[0].message).toContain('Weak hashing algorithm used: md5');
+      expect(findings[0].confidence).toBe('high');
+    });
+
+    it('should detect Math.random inside object properties (e.g. res.json token)', () => {
+      const code = `
+        res.json({ token: Math.random().toString(36) });
+      `;
+      const context = createTestContext(code);
+
+      const findings = rule.analyze(context);
+      expect(findings.length).toBe(1);
+      expect(findings[0].message).toContain("Insecure randomness (Math.random) used for security-sensitive variable 'token'");
+      expect(findings[0].confidence).toBe('high');
+    });
+
+    it('should detect Math.random returned directly from a token generation function', () => {
+      const code = `
+        function generateSessionToken() {
+          return Math.random().toString(36);
+        }
+      `;
+      const context = createTestContext(code);
+
+      const findings = rule.analyze(context);
+      expect(findings.length).toBe(1);
+      expect(findings[0].message).toContain("Insecure randomness (Math.random) used for security-sensitive variable 'generateSessionToken'");
+      expect(findings[0].confidence).toBe('high');
+    });
   });
 
   describe('True Negatives (Safe Code Ignored)', () => {
-    it('should allow secure hashing algorithms like sha256 and sha512', () => {
+    it('should allow secure hashing algorithms like sha256 and sha512 and ciphers like aes-256-gcm', () => {
       const code = `
         const hash256 = crypto.createHash('sha256').update(data).digest('hex');
         const hash512 = crypto.createHash('sha512').update(data).digest('hex');
+        const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
       `;
       const context = createTestContext(code);
 

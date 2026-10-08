@@ -70,6 +70,54 @@ describe('Rule: secrets/hardcoded-secrets', () => {
       expect(findings.length).toBe(1);
       expect(findings[0].message).toContain("Hardcoded secret assigned to property 'dbPassword'");
     });
+
+    it('should detect Razorpay keys starting with rzp_live_ or rzp_test_', () => {
+      const razorpayKey = ['rzp', 'live', '12345678901234'].join('_');
+      const code = `const rzpKey = '${razorpayKey}';`;
+      const context = createTestContext(code);
+
+      const findings = rule.analyze(context);
+      expect(findings.length).toBe(1);
+      expect(findings[0].message).toContain("Hardcoded secret");
+      expect(findings[0].confidence).toBe('high');
+    });
+
+    it('should detect AWS Access Key IDs', () => {
+      const awsKey = ['AKIA', 'IOSFODNN7EXAMPLE'].join('');
+      const code = `const awsAccessKey = '${awsKey}';`;
+      const context = createTestContext(code);
+
+      const findings = rule.analyze(context);
+      expect(findings.length).toBe(1);
+      expect(findings[0].message).toContain("Hardcoded secret");
+      expect(findings[0].confidence).toBe('high');
+    });
+
+    it('should detect Stripe Webhook Secrets starting with whsec_', () => {
+      const webhookSecret = ['whsec', '1234567890abcdef12345678'].join('_');
+      const code = `const webhookSecret = '${webhookSecret}';`;
+      const context = createTestContext(code);
+
+      const findings = rule.analyze(context);
+      expect(findings.length).toBe(1);
+      expect(findings[0].message).toContain("Hardcoded secret");
+      expect(findings[0].confidence).toBe('high');
+    });
+
+    it('should detect secrets inside object literals (ObjectProperty)', () => {
+      const fakeApiKey = ['sk', 'live', '1234567890abcdef12345678'].join('_');
+      const code = `
+        const client = new Stripe({
+          apiKey: '${fakeApiKey}',
+        });
+      `;
+      const context = createTestContext(code);
+
+      const findings = rule.analyze(context);
+      expect(findings.length).toBe(1);
+      expect(findings[0].message).toContain("Hardcoded secret assigned to property 'apiKey'");
+      expect(findings[0].confidence).toBe('high');
+    });
   });
 
   describe('True Negatives (Safe Code Ignored)', () => {
@@ -99,6 +147,18 @@ describe('Rule: secrets/hardcoded-secrets', () => {
       const code = `
         const apiKey = 'test';
         const secret = 'aaaaa';
+      `;
+      const context = createTestContext(code);
+
+      const findings = rule.analyze(context);
+      expect(findings.length).toBe(0);
+    });
+
+    it('should ignore common English dictionary words to avoid false positives (Issue M2-3)', () => {
+      const code = `
+        const secret = 'administrator';
+        const apiKey = 'configuration';
+        const token = 'development';
       `;
       const context = createTestContext(code);
 
