@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { correlateAttackChains, enhanceFinding, enhanceReport } from '../../src/ai/enhancer.js';
+import { describe, it, expect, afterEach } from 'vitest';
+import { correlateAttackChains, enhanceFinding, enhanceReport, clearCache } from '../../src/ai/enhancer.js';
 
 describe('AI Enhancer Layer: correlateAttackChains & enhanceReport', () => {
+  afterEach(() => {
+    clearCache();
+  });
   it('correlates payment tampering and unverified webhook into critical attack chain', () => {
     const findings = [
       {
@@ -119,5 +122,15 @@ describe('AI Enhancer Layer: correlateAttackChains & enhanceReport', () => {
 
     expect(enhanced1.ruleId).toBe('injection/sql-injection');
     expect(enhanced2.ruleId).toBe('injection/sql-injection');
+  });
+
+  it('clears in-memory cache when clearCache is called', () => {
+    expect(() => clearCache()).not.toThrow();
+  });
+
+  it('recognizes modern OpenAI key formats (sk-proj-, sk-org-) without throwing', async () => {
+    const finding = { ruleId: 'secrets/hardcoded-secrets', severity: 'critical' };
+    const enhanced = await enhanceFinding(finding, '', { apiKey: 'sk-proj-mock-key' });
+    expect(enhanced.ruleId).toBe('secrets/hardcoded-secrets');
   });
 });

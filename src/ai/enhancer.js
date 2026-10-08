@@ -102,6 +102,14 @@ export function getDeterministicScenario(ruleId) {
 const LLM_CACHE = new Map();
 
 /**
+ * Clears the in-memory LLM response cache.
+ * Exported for test teardown and avoiding state leakage across test suites.
+ */
+export function clearCache() {
+  LLM_CACHE.clear();
+}
+
+/**
  * Correlates multiple independent findings into high-impact composite attack chains.
  * Implements both TrustLayer ScanReport format and implementation plan AIEnhancer interface.
  *
@@ -239,7 +247,8 @@ export async function enhanceFinding(finding, codeContextOrOptions = {}, options
           };
         }
       }
-    } else if (process.env.OPENAI_API_KEY || (apiKey && apiKey.startsWith('sk-'))) {
+    // Support traditional (sk-), project-based (sk-proj-), and org-based (sk-org-) keys
+    } else if (process.env.OPENAI_API_KEY || (apiKey && /^(sk-|sk-proj-|sk-org-)/i.test(apiKey))) {
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {

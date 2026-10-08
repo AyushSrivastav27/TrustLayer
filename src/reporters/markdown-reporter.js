@@ -1,5 +1,4 @@
 import path from 'node:path';
-import { correlateAttackChains, getDeterministicScenario } from '../ai/enhancer.js';
 
 const SEVERITY_BADGES = {
   critical: '🔴 **CRITICAL**',
@@ -14,6 +13,22 @@ const SEVERITY_ICONS = {
   medium: '🟡',
   low: '🔵'
 };
+
+/**
+ * Normalizes a file path for display.
+ * If the path is absolute, converts it to relative against process.cwd().
+ * If already relative, preserves it cleanly.
+ *
+ * @param {string} [filePath]
+ * @returns {string}
+ */
+function formatDisplayPath(filePath) {
+  if (!filePath) return 'unknown';
+  if (path.isAbsolute(filePath)) {
+    return path.relative(process.cwd(), filePath) || filePath;
+  }
+  return filePath;
+}
 
 /**
  * Formats a ScanReport object into a comprehensive GitHub Flavored Markdown report.
@@ -67,17 +82,10 @@ export function generateMarkdownReport(report) {
     return md;
   }
 
-  // Correlated Attack Chains (via AI layer or heuristic correlation)
-  let activeChains = (attackChains && attackChains.length > 0) ? attackChains : [];
-  if (activeChains.length === 0 && typeof correlateAttackChains === 'function') {
-    try {
-      activeChains = correlateAttackChains(findings);
-    } catch {
-      activeChains = [];
-    }
-  }
+  // Correlated Attack Chains (rendered from report if present)
+  const activeChains = Array.isArray(attackChains) ? attackChains : [];
 
-  if (activeChains && activeChains.length > 0) {
+  if (activeChains.length > 0) {
     md += `## ⚡ Correlated Attack Chains (AI Correlated)\n\n`;
     md += `The AI reasoning layer correlated multiple independent findings into the following composite exploit chains:\n\n`;
 
@@ -101,7 +109,7 @@ export function generateMarkdownReport(report) {
   md += `|---|---|---|---|---|\n`;
 
   findings.forEach((f, idx) => {
-    const relFile = f.file ? (path.relative(process.cwd(), f.file) || f.file) : 'unknown';
+    const relFile = formatDisplayPath(f.file);
     const normalizedSev = (f.severity || 'unknown').toLowerCase();
     const badge = SEVERITY_BADGES[normalizedSev] || (f.severity || 'UNKNOWN').toUpperCase();
     const lineStr = f.line ? `:${f.line}` : '';
@@ -116,7 +124,7 @@ export function generateMarkdownReport(report) {
   md += `## 🔍 Detailed Vulnerability Breakdown\n\n`;
 
   findings.forEach((f, idx) => {
-    const relFile = f.file ? (path.relative(process.cwd(), f.file) || f.file) : 'unknown';
+    const relFile = formatDisplayPath(f.file);
     const normalizedSev = (f.severity || 'unknown').toLowerCase();
     const icon = SEVERITY_ICONS[normalizedSev] || '⚠️';
     const title = f.message || f.ruleId || 'Vulnerability Finding';
@@ -138,7 +146,7 @@ export function generateMarkdownReport(report) {
       md += `${f.explanation}\n\n`;
     }
 
-    const scenario = f.aiExploitScenario || (typeof getDeterministicScenario === 'function' ? getDeterministicScenario(f.ruleId) : null);
+    const scenario = f.aiExploitScenario || null;
     if (scenario) {
       md += `#### 🎯 Step-by-Step Exploitation Scenario\n`;
       md += `${scenario}\n\n`;

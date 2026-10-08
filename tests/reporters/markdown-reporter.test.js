@@ -159,4 +159,56 @@ describe('Reporter: markdown-reporter', () => {
     expect(md).not.toContain(':undefined');
     expect(md).toContain('CRITICAL');
   });
+
+  it('correctly handles already-relative and absolute paths without mangling (M5-9)', () => {
+    const reportPaths = {
+      summary: { totalFiles: 2, totalFindings: 2, severities: { critical: 1, high: 1, medium: 0, low: 0 } },
+      findings: [
+        {
+          ruleId: 'payment/tampering',
+          severity: 'critical',
+          file: 'relative/path/checkout.js',
+          line: 10
+        },
+        {
+          ruleId: 'auth/missing',
+          severity: 'high',
+          file: `${process.cwd()}/src/app.js`,
+          line: 20
+        }
+      ]
+    };
+
+    const md = generateMarkdownReport(reportPaths);
+    expect(md).toContain('`relative/path/checkout.js:10`');
+    expect(md).toContain('`src/app.js:20`');
+    expect(md).not.toContain('../../relative');
+  });
+
+  it('renders pre-enhanced report without invoking external AI dependencies (M5-1)', () => {
+    const preEnhancedReport = {
+      summary: { totalFiles: 1, totalFindings: 1, severities: { critical: 1, high: 0, medium: 0, low: 0 } },
+      findings: [
+        {
+          ruleId: 'payment/amount',
+          severity: 'critical',
+          file: 'checkout.js',
+          line: 15,
+          aiExploitScenario: 'Pre-computed scenario: attacker changes price to $0.'
+        }
+      ],
+      attackChains: [
+        {
+          title: 'Custom Precomputed Chain',
+          severity: 'critical',
+          findingIds: ['payment/amount'],
+          description: 'Precomputed narrative'
+        }
+      ]
+    };
+
+    const md = generateMarkdownReport(preEnhancedReport);
+    expect(md).toContain('Pre-computed scenario: attacker changes price to $0.');
+    expect(md).toContain('Custom Precomputed Chain');
+  });
 });

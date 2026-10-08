@@ -4,8 +4,8 @@ import Stripe from 'stripe';
 import { db } from '../../demo/db/setup.js';
 
 const router = express.Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder_key_123');
-const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_placeholder_secret_key';
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'dummy_stripe_key_not_configured');
+const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET || 'dummy_webhook_secret_not_configured';
 
 const webhookSchema = {
   parse(data) {

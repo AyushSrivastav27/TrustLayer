@@ -100,4 +100,27 @@ describe('Reporter: json-reporter', () => {
     expect(rule.shortDescription.text).toBe('Crit msg');
     expect(rule.help.text).toBe('Fix crit');
   });
+
+  it('includes endColumn in SARIF region when provided on findings', () => {
+    const reportWithEndCol = {
+      findings: [
+        {
+          ruleId: 'secrets/hardcoded-secrets',
+          severity: 'critical',
+          file: 'config.js',
+          line: 5,
+          column: 10,
+          endLine: 5,
+          endColumn: 35
+        }
+      ]
+    };
+
+    const sarif = toSarif(reportWithEndCol);
+    const region = sarif.runs[0].results[0].locations[0].physicalLocation.region;
+    expect(region.startLine).toBe(5);
+    expect(region.startColumn).toBe(10);
+    expect(region.endLine).toBe(5);
+    expect(region.endColumn).toBe(35);
+  });
 });

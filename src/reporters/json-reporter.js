@@ -51,7 +51,8 @@ export function toSarif(report) {
             region: {
               startLine: f.line || 1,
               startColumn: f.column || 1,
-              endLine: f.endLine || f.line || 1
+              endLine: f.endLine || f.line || 1,
+              ...(typeof f.endColumn === 'number' ? { endColumn: f.endColumn } : {})
             }
           }
         }

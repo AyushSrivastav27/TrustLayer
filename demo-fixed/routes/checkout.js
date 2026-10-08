@@ -6,7 +6,7 @@ import { db } from '../../demo/db/setup.js';
 const router = express.Router();
 router.use(requireAuth);
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder_key_123');
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'dummy_stripe_key_not_configured');
 
 const checkoutSchema = {
   parse(data) {

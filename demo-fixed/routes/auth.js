@@ -28,16 +28,17 @@ router.post('/register', (req, res) => {
     return res.status(400).json({ error: 'Email and password required' });
   }
 
-  // SECURE: Cryptographically sound SHA-256 hash
+  // SECURE: Cryptographically sound SHA-256 hash with unique per-user salt
   const salt = crypto.randomBytes(16).toString('hex');
-  const passwordHash = crypto.createHash('sha256').update(password + salt).digest('hex');
+  const hash = crypto.createHash('sha256').update(password + salt).digest('hex');
+  const storedPassword = `${salt}:${hash}`;
 
   try {
     const stmt = db.prepare(`
       INSERT INTO users (name, email, password, role)
       VALUES (?, ?, ?, 'user')
     `);
-    const result = stmt.run(name || 'Customer', email, passwordHash);
+    const result = stmt.run(name || 'Customer', email, storedPassword);
 
     const token = jwt.sign({ id: result.lastInsertRowid, email, role: 'user' }, jwtSecret);
     res.status(201).json({ message: 'User registered', token });
@@ -48,17 +49,31 @@ router.post('/register', (req, res) => {
 
 /**
  * POST /api/auth/login
- * SECURE: Schema validation + strong hashing
+ * SECURE: Schema validation + strong hashing with constant-time verification
  */
 router.post('/login', (req, res) => {
   const data = authSchema.parse(req.body);
   const { email, password } = data;
 
-  const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-  const stmt = db.prepare('SELECT * FROM users WHERE email = ? AND password = ?');
-  const user = stmt.get(email, passwordHash);
+  const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
+  const user = stmt.get(email);
 
   if (!user) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  let isValid = false;
+  if (user.password && user.password.includes(':')) {
+    const [salt, storedHash] = user.password.split(':');
+    const calculatedHash = crypto.createHash('sha256').update(password + salt).digest('hex');
+    isValid = crypto.timingSafeEqual(Buffer.from(calculatedHash), Buffer.from(storedHash));
+  } else if (user.password) {
+    // Support pre-seeded demo users hashed with standard SHA-256
+    const calculatedHash = crypto.createHash('sha256').update(password).digest('hex');
+    isValid = crypto.timingSafeEqual(Buffer.from(calculatedHash), Buffer.from(user.password));
+  }
+
+  if (!isValid) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
