@@ -2,7 +2,7 @@ import express from 'express';
 import Stripe from 'stripe';
 
 const router = express.Router();
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_placeholder_key_123');
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'dummy_stripe_key_not_configured');
 
 const schema = {
   parse(data) {

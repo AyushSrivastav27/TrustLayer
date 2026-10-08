@@ -100,4 +100,138 @@ describe('Reporter: json-reporter', () => {
     expect(rule.shortDescription.text).toBe('Crit msg');
     expect(rule.help.text).toBe('Fix crit');
   });
+
+  it('includes endColumn in SARIF region when provided on findings', () => {
+    const reportWithEndCol = {
+      findings: [
+        {
+          ruleId: 'secrets/hardcoded-secrets',
+          severity: 'critical',
+          file: 'config.js',
+          line: 5,
+          column: 10,
+          endLine: 5,
+          endColumn: 35
+        }
+      ]
+    };
+
+    const sarif = toSarif(reportWithEndCol);
+    const region = sarif.runs[0].results[0].locations[0].physicalLocation.region;
+    expect(region.startLine).toBe(5);
+    expect(region.startColumn).toBe(10);
+    expect(region.endLine).toBe(5);
+    expect(region.endColumn).toBe(35);
+  });
 });
+
+describe('M5-4 Verification: SARIF v2.1.0 endColumn & Worst-Case Scenario Tests', () => {
+  it('contradiction test: endColumn is strictly preserved when provided as a positive integer', () => {
+    const report = {
+      findings: [
+        {
+          ruleId: 'payment/payment-amount-tampering',
+          severity: 'critical',
+          file: 'checkout.js',
+          line: 12,
+          column: 5,
+          endLine: 12,
+          endColumn: 48
+        }
+      ]
+    };
+
+    const sarif = toSarif(report);
+    const region = sarif.runs[0].results[0].locations[0].physicalLocation.region;
+
+    // Contradiction assertion: endColumn must match 48 exactly
+    expect(region).toHaveProperty('endColumn', 48);
+  });
+
+  it('contradiction test: endColumn is omitted when not provided or non-numeric', () => {
+    const reportWithout = {
+      findings: [
+        {
+          ruleId: 'injection/sql-injection',
+          severity: 'high',
+          file: 'routes/products.js',
+          line: 25,
+          column: 1
+        },
+        {
+          ruleId: 'auth/missing-auth-middleware',
+          severity: 'medium',
+          file: 'routes/orders.js',
+          line: 10,
+          endColumn: 'invalid_string'
+        },
+        {
+          ruleId: 'secrets/hardcoded-secrets',
+          severity: 'critical',
+          file: 'routes/auth.js',
+          line: 8,
+          endColumn: null
+        }
+      ]
+    };
+
+    const sarif = toSarif(reportWithout);
+    const results = sarif.runs[0].results;
+
+    // Contradiction assertion: Must not leak undefined/null/invalid into serialized SARIF
+    expect(results[0].locations[0].physicalLocation.region.endColumn).toBeUndefined();
+    expect(results[1].locations[0].physicalLocation.region.endColumn).toBeUndefined();
+    expect(results[2].locations[0].physicalLocation.region.endColumn).toBeUndefined();
+
+    // Verify valid JSON serialization
+    const serialized = JSON.stringify(sarif);
+    expect(serialized).not.toContain('"endColumn":null');
+    expect(serialized).not.toContain('"endColumn":"invalid_string"');
+  });
+
+  it('worst-case scenario: sparse and corrupted findings array does not crash toSarif', () => {
+    const adversarialReport = {
+      scannerVersion: '1.0.0',
+      findings: [
+        null,
+        undefined,
+        'not-an-object',
+        12345,
+        {},
+        { ruleId: 'valid/rule', severity: 'HIGH', file: 'ok.js', line: 10, endColumn: 20 }
+      ]
+    };
+
+    expect(() => {
+      const sarif = toSarif(adversarialReport);
+      expect(sarif.runs[0].results).toHaveLength(2); // The empty object and the valid rule
+      expect(sarif.runs[0].results[1].ruleId).toBe('valid/rule');
+      expect(sarif.runs[0].results[1].level).toBe('error');
+      expect(sarif.runs[0].results[1].locations[0].physicalLocation.region.endColumn).toBe(20);
+    }).not.toThrow();
+  });
+
+  it('worst-case scenario: non-array findings and null options handled gracefully', () => {
+    expect(() => {
+      const sarif = toSarif({ findings: 'invalid-findings-type' });
+      expect(sarif.runs[0].results).toEqual([]);
+    }).not.toThrow();
+
+    expect(() => {
+      const json = generateJsonReport({ scannerVersion: '1.0.0' }, null);
+      expect(JSON.parse(json)).toHaveProperty('scannerVersion', '1.0.0');
+    }).not.toThrow();
+  });
+
+  it('worst-case scenario: cyclic reference in report is caught without process termination', () => {
+    const cyclicReport = { scannerVersion: '1.0.0' };
+    cyclicReport.self = cyclicReport;
+
+    const result = generateJsonReport(cyclicReport);
+    const parsed = JSON.parse(result);
+
+    expect(parsed).toHaveProperty('error', 'Serialization failed');
+    expect(parsed).toHaveProperty('message');
+  });
+});
+
