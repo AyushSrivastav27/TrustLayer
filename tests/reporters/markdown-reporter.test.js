@@ -211,4 +211,73 @@ describe('Reporter: markdown-reporter', () => {
     expect(md).toContain('Pre-computed scenario: attacker changes price to $0.');
     expect(md).toContain('Custom Precomputed Chain');
   });
+
+  describe('M5-1 Contradiction & Worst-Case Scenario Tests', () => {
+    it('contradiction test: never crashes or invokes enhancer even when findings array has nulls, sparse elements, or non-arrays', () => {
+      const adversarialReport = {
+        summary: { totalFiles: 3, totalFindings: 1, severities: { critical: 1 } },
+        findings: [
+          null,
+          undefined,
+          {},
+          {
+            ruleId: 'injection/sql-injection',
+            severity: 'critical',
+            file: 'src/db.js',
+            line: 42,
+            message: 'Raw query injection',
+            aiExploitScenario: 12345 // Non-string adversarial value
+          }
+        ],
+        attackChains: [
+          null,
+          undefined,
+          {},
+          {
+            title: 'Valid Chain',
+            severity: null, // missing severity
+            findingIds: null, // non-array findingIds
+            description: 'Exploit description'
+          }
+        ]
+      };
+
+      expect(() => generateMarkdownReport(adversarialReport)).not.toThrow();
+      const output = generateMarkdownReport(adversarialReport);
+      expect(output).toContain('injection/sql-injection');
+      expect(output).toContain('Valid Chain');
+      expect(output).not.toContain('12345'); // non-string scenario discarded safely
+    });
+
+    it('worst-case: completely non-array findings and attackChains properties are handled gracefully', () => {
+      const nonArrayReport = {
+        summary: { totalFiles: 1, totalFindings: 0 },
+        findings: 'corrupted-findings-string',
+        attackChains: 99999
+      };
+
+      expect(() => generateMarkdownReport(nonArrayReport)).not.toThrow();
+      const output = generateMarkdownReport(nonArrayReport);
+      expect(output).toContain('Clean Scan — No Vulnerabilities Detected');
+    });
+
+    it('worst-case: pure function immutability check (idempotent without mutating report object)', () => {
+      const reportCopy = {
+        summary: { totalFiles: 1, totalFindings: 1, severities: { critical: 1, high: 0, medium: 0, low: 0 } },
+        findings: [
+          { ruleId: 'payment/amount', severity: 'critical', file: 'route.js', line: 10 }
+        ],
+        attackChains: [
+          { title: 'Chain A', severity: 'critical', findingIds: ['payment/amount'], description: 'Desc' }
+        ]
+      };
+
+      const originalJson = JSON.stringify(reportCopy);
+      const output1 = generateMarkdownReport(reportCopy);
+      const output2 = generateMarkdownReport(reportCopy);
+
+      expect(output1).toBe(output2);
+      expect(JSON.stringify(reportCopy)).toBe(originalJson);
+    });
+  });
 });

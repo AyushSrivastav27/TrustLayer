@@ -73,8 +73,10 @@ export function generateMarkdownReport(report) {
   md += `| **Total Issues Found** | **${summary.totalFindings}** |\n`;
   md += `| **Risk Profile** | 🔴 Critical: **${sev.critical}** \| 🟠 High: **${sev.high}** \| 🟡 Medium: **${sev.medium}** \| 🔵 Low: **${sev.low}** |\n\n`;
 
+  const safeFindings = Array.isArray(findings) ? findings.filter(f => f && typeof f === 'object') : [];
+
   // Clean Scan Section
-  if (findings.length === 0) {
+  if (safeFindings.length === 0) {
     md += `## ✅ Clean Scan — No Vulnerabilities Detected\n\n`;
     md += `All automated static analysis checks passed with zero security findings.  \n`;
     md += `No hardcoded secrets, SQL injection flaws, unverified webhooks, or payment tampering patterns were found in the scanned codebase.\n\n`;
@@ -83,22 +85,27 @@ export function generateMarkdownReport(report) {
   }
 
   // Correlated Attack Chains (rendered from report if present)
-  const activeChains = Array.isArray(attackChains) ? attackChains : [];
+  const activeChains = Array.isArray(attackChains) ? attackChains.filter(c => c && typeof c === 'object') : [];
 
   if (activeChains.length > 0) {
     md += `## ⚡ Correlated Attack Chains (AI Correlated)\n\n`;
     md += `The AI reasoning layer correlated multiple independent findings into the following composite exploit chains:\n\n`;
 
     for (const [index, chain] of activeChains.entries()) {
-      const chainSev = (chain.severity || 'high').toUpperCase();
-      const chainIcon = SEVERITY_ICONS[chain.severity] || '⚠️';
+      const chainSev = String(chain.severity || 'high').toUpperCase();
+      const chainIcon = SEVERITY_ICONS[String(chain.severity || '').toLowerCase()] || '⚠️';
+      const chainTitle = chain.title || chain.name || `Chain #${index + 1}`;
 
-      md += `### ${chainIcon} Chain #${index + 1}: ${chain.title}\n\n`;
+      md += `### ${chainIcon} Chain #${index + 1}: ${chainTitle}\n\n`;
       md += `**Severity**: \`${chainSev}\`  \n`;
-      if (chain.findingIds && chain.findingIds.length > 0) {
-        md += `**Participating Rules**: ${chain.findingIds.map(id => `\`${id}\``).join(', ')}  \n`;
+      const chainFindingIds = Array.isArray(chain.findingIds) ? chain.findingIds : (Array.isArray(chain.findings) ? chain.findings : []);
+      if (chainFindingIds.length > 0) {
+        md += `**Participating Rules**: ${chainFindingIds.map(id => `\`${id}\``).join(', ')}  \n`;
       }
-      md += `\n${chain.description}\n\n`;
+      const narrative = chain.description || chain.narrative;
+      if (narrative) {
+        md += `\n${narrative}\n\n`;
+      }
       md += `---\n\n`;
     }
   }
@@ -108,14 +115,14 @@ export function generateMarkdownReport(report) {
   md += `| # | Severity | Rule ID | Location | Message |\n`;
   md += `|---|---|---|---|---|\n`;
 
-  findings.forEach((f, idx) => {
+  safeFindings.forEach((f, idx) => {
     const relFile = formatDisplayPath(f.file);
-    const normalizedSev = (f.severity || 'unknown').toLowerCase();
-    const badge = SEVERITY_BADGES[normalizedSev] || (f.severity || 'UNKNOWN').toUpperCase();
+    const normalizedSev = String(f.severity || 'unknown').toLowerCase();
+    const badge = SEVERITY_BADGES[normalizedSev] || String(f.severity || 'UNKNOWN').toUpperCase();
     const lineStr = f.line ? `:${f.line}` : '';
     const loc = `\`${relFile}${lineStr}\``;
     const safeMsg = String(f.message || f.ruleId || '').replace(/\|/g, '\\|');
-    md += `| ${idx + 1} | ${badge} | \`${f.ruleId}\` | ${loc} | ${safeMsg} |\n`;
+    md += `| ${idx + 1} | ${badge} | \`${f.ruleId || 'unknown'}\` | ${loc} | ${safeMsg} |\n`;
   });
 
   md += `\n---\n\n`;
@@ -123,21 +130,21 @@ export function generateMarkdownReport(report) {
   // Detailed Finding Cards
   md += `## 🔍 Detailed Vulnerability Breakdown\n\n`;
 
-  findings.forEach((f, idx) => {
+  safeFindings.forEach((f, idx) => {
     const relFile = formatDisplayPath(f.file);
-    const normalizedSev = (f.severity || 'unknown').toLowerCase();
+    const normalizedSev = String(f.severity || 'unknown').toLowerCase();
     const icon = SEVERITY_ICONS[normalizedSev] || '⚠️';
     const title = f.message || f.ruleId || 'Vulnerability Finding';
 
-    md += `### ${icon} #${idx + 1} [${(f.severity || 'UNKNOWN').toUpperCase()}] ${title}\n\n`;
-    md += `- **Rule**: \`${f.ruleId}\`\n`;
+    md += `### ${icon} #${idx + 1} [${String(f.severity || 'UNKNOWN').toUpperCase()}] ${title}\n\n`;
+    md += `- **Rule**: \`${f.ruleId || 'unknown'}\`\n`;
     const lineCol = f.line ? `:${f.line}${f.column ? `:${f.column}` : ''}` : '';
     md += `- **Location**: \`${relFile}${lineCol}\`\n`;
-    md += `- **Confidence**: \`${(f.confidence || 'high').toUpperCase()}\`\n\n`;
+    md += `- **Confidence**: \`${String(f.confidence || 'high').toUpperCase()}\`\n\n`;
 
     if (f.codeSnippet) {
       md += `#### 🚨 Vulnerable Code\n`;
-      const fence = f.codeSnippet.includes('```') ? '````' : '```';
+      const fence = String(f.codeSnippet).includes('```') ? '````' : '```';
       md += `${fence}javascript\n${f.codeSnippet}\n${fence}\n\n`;
     }
 
@@ -146,7 +153,7 @@ export function generateMarkdownReport(report) {
       md += `${f.explanation}\n\n`;
     }
 
-    const scenario = f.aiExploitScenario || null;
+    const scenario = typeof f.aiExploitScenario === 'string' ? f.aiExploitScenario : null;
     if (scenario) {
       md += `#### 🎯 Step-by-Step Exploitation Scenario\n`;
       md += `${scenario}\n\n`;
