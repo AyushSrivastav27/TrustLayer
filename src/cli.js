@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import { scan } from './engine/scanner.js';
@@ -42,7 +43,7 @@ function printBanner() {
  * @param {string} formatOption
  * @returns {{ filePath: string, format: string }}
  */
-function resolveReportTarget(outputOption, formatOption) {
+export function resolveReportTarget(outputOption, formatOption) {
   let format = (formatOption || 'markdown').toLowerCase();
   if (format === 'md') format = 'markdown';
 
@@ -78,7 +79,7 @@ function resolveReportTarget(outputOption, formatOption) {
  * @param {import('./types/report.js').ScanReport} report
  * @returns {string}
  */
-function generateMarkdownReport(report) {
+export function generateMarkdownReport(report) {
   const { summary, findings, targetDirectory, scanDate } = report;
   const sev = summary.severities;
 
@@ -272,4 +273,19 @@ program
     }
   });
 
-program.parse(process.argv);
+let isDirectRun = false;
+if (process.argv[1]) {
+  try {
+    const realArgv1 = fsSync.realpathSync(path.resolve(process.argv[1]));
+    const thisFile = fileURLToPath(import.meta.url);
+    isDirectRun = realArgv1 === thisFile;
+  } catch {
+    isDirectRun = false;
+  }
+}
+
+if (isDirectRun) {
+  program.parse(process.argv);
+}
+
+export { program };
