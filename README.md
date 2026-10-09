@@ -193,14 +193,26 @@ node src/cli.js scan ./demo -c payment
 
 TrustLayer operates with a **Deterministic Detection Core**:
 - **Offline Heuristics (Default)**: Automatically correlates 4 multi-stage attack chains (e.g., Unauthenticated Orders → Client-Controlled Amount Tampering) and provides deterministic code fixes with **zero network requests and zero LLM dependencies**.
-- **Online Gemini 3.8 Flash Mode**: When a Gemini API key is configured, TrustLayer enriches findings with tailored business impact assessments, realistic exploit walk-throughs, and contextual code remediation diffs:
+- **Multi-Provider Cloud AI (Auto-Fallback Cascades)**: When an API key is configured, TrustLayer enriches findings with tailored business impact assessments, realistic exploit walk-throughs, and contextual code remediation diffs:
+  - **Google Gemini (Default)**: Automatically attempts high-availability fast models with seamless fallback:  
+    `gemini-3.5-flash` → `gemini-3.5-flash-lite` → `gemini-3.6-flash` → `gemini-3.7-flash` → `gemini-3.8-flash` → `gemini-3.1-flash-lite`.
+  - **Anthropic Claude**: Automatically supported with model failover:  
+    `claude-3-7-sonnet-latest` → `claude-3-5-sonnet-latest` → `claude-3-5-haiku-latest`.
+  - **OpenAI**: Supported with `gpt-4o-mini`.
+
   ```bash
-  # Option A: Set in environment or .env file (Recommended)
-  export GEMINI_API_KEY="AIzaSy..."
+  # Option A: Set in .env file or environment (Recommended)
+  # For Google Gemini:
+  export GEMINI_API_KEY="AIzaSy..."   # (or GOOGLE_API_KEY)
+
+  # For Anthropic Claude:
+  export ANTHROPIC_API_KEY="sk-ant-..." # (or CLAUDE_API_KEY)
+
+  # Run scan with AI enabled:
   node src/cli.js scan ./demo --ai
 
-  # Option B: Pass via flag
-  node src/cli.js scan ./demo --ai --api-key "AIzaSy..."
+  # Option B: Pass via CLI flag
+  node src/cli.js scan ./demo --ai --api-key "your-api-key"
   ```
 
 ---

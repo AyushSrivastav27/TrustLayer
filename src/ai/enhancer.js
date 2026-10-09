@@ -13,7 +13,25 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 
-export const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+export const DEFAULT_GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
+export const GEMINI_FALLBACK_MODELS = [
+  process.env.GEMINI_MODEL,
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.6-flash',
+  'gemini-3.7-flash',
+  'gemini-3.8-flash',
+  'gemini-3.1-flash-lite'
+].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
+
+export const DEFAULT_CLAUDE_MODEL = process.env.CLAUDE_MODEL || process.env.ANTHROPIC_MODEL || 'claude-3-7-sonnet-latest';
+export const CLAUDE_FALLBACK_MODELS = [
+  process.env.CLAUDE_MODEL || process.env.ANTHROPIC_MODEL,
+  'claude-3-7-sonnet-latest',
+  'claude-3-5-sonnet-latest',
+  'claude-3-5-haiku-latest'
+].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
+
 export const DEFAULT_OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
 /**
@@ -358,8 +376,14 @@ export async function enhanceFinding(finding, codeContextOrOptions = {}, options
     `An attacker targets "${finding.ruleId}" by injecting malformed input into the unvalidated handler.`;
   const defaultRemediation = DETERMINISTIC_REMEDIATIONS[finding.ruleId] || finding.remediation || '';
 
-  const apiKey = opts.apiKey || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
-  const timeoutMs = opts.timeout || 3000;
+  const apiKey = opts.apiKey ||
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.ANTHROPIC_API_KEY ||
+    process.env.CLAUDE_API_KEY ||
+    process.env.OPENAI_API_KEY;
+  const timeoutMs = opts.timeout || 15000;
+  const perAttemptTimeout = Math.min(timeoutMs, 8000);
 
   // Base enhanced finding with deterministic offline values (including full code remediation)
   const baseEnhanced = {
@@ -390,8 +414,9 @@ export async function enhanceFinding(finding, codeContextOrOptions = {}, options
 
   // Optional online LLM call if API key provided
   try {
-    const isGemini = apiKey.startsWith('AIza') || Boolean(process.env.GEMINI_API_KEY);
-    const isOpenAi = !isGemini && (apiKey.startsWith('sk-') || Boolean(process.env.OPENAI_API_KEY));
+    const isClaude = apiKey.startsWith('sk-ant-') || Boolean(process.env.ANTHROPIC_API_KEY) || Boolean(process.env.CLAUDE_API_KEY);
+    const isGemini = !isClaude && (apiKey.startsWith('AIza') || apiKey.startsWith('AQ.') || Boolean(process.env.GEMINI_API_KEY) || Boolean(process.env.GOOGLE_API_KEY));
+    const isOpenAi = !isClaude && !isGemini && (apiKey.startsWith('sk-') || Boolean(process.env.OPENAI_API_KEY));
 
     const structuredPrompt =
       `You are a principal application security engineer. Analyze this Node.js/Express security vulnerability:\n` +
@@ -406,43 +431,94 @@ export async function enhanceFinding(finding, codeContextOrOptions = {}, options
       `  "remediation": "Corrected code snippet demonstrating the secure pattern"\n` +
       `}`;
 
-    if (isGemini) {
-      const model = opts.model || DEFAULT_GEMINI_MODEL;
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: structuredPrompt }] }],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 800,
-            responseMimeType: 'application/json'
+    if (isClaude) {
+      const candidateModels = opts.model ? [opts.model] : CLAUDE_FALLBACK_MODELS;
+      for (const model of candidateModels) {
+        try {
+          const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+              model,
+              max_tokens: 2048,
+              messages: [{ role: 'user', content: structuredPrompt }]
+            }),
+            signal: AbortSignal.timeout(perAttemptTimeout)
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const text = data?.content?.[0]?.text;
+            const parsed = extractJsonFromResponse(text);
+
+            if (parsed) {
+              const aiData = {
+                explanation: parsed.businessImpact || text.slice(0, 500),
+                aiExplanation: parsed.businessImpact || text.slice(0, 500),
+                aiExploitScenario: parsed.exploitScenario || defaultScenario,
+                aiRemediation: parsed.remediation || defaultRemediation,
+                remediation: parsed.remediation || defaultRemediation,
+                aiMode: 'online',
+                aiEngine: `Anthropic Claude (${model})`
+              };
+              LLM_CACHE.set(cacheKey, aiData);
+              return {
+                ...baseEnhanced,
+                ...aiData
+              };
+            }
           }
-        }),
-        signal: AbortSignal.timeout(timeoutMs)
-      });
+        } catch {
+          // Fall back to next model in Claude cascade
+        }
+      }
+    } else if (isGemini) {
+      const candidateModels = opts.model ? [opts.model] : GEMINI_FALLBACK_MODELS;
+      for (const model of candidateModels) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: structuredPrompt }] }],
+              generationConfig: {
+                temperature: 0.2,
+                maxOutputTokens: 2048,
+                responseMimeType: 'application/json'
+              }
+            }),
+            signal: AbortSignal.timeout(perAttemptTimeout)
+          });
 
-      if (response.ok) {
-        const data = await response.json();
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        const parsed = extractJsonFromResponse(text);
+          if (response.ok) {
+            const data = await response.json();
+            const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            const parsed = extractJsonFromResponse(text);
 
-        if (parsed) {
-          const aiData = {
-            explanation: parsed.businessImpact || text.slice(0, 500),
-            aiExplanation: parsed.businessImpact || text.slice(0, 500),
-            aiExploitScenario: parsed.exploitScenario || defaultScenario,
-            aiRemediation: parsed.remediation || defaultRemediation,
-            remediation: parsed.remediation || defaultRemediation,
-            aiMode: 'online',
-            aiEngine: `Google Gemini (${model})`
-          };
-          LLM_CACHE.set(cacheKey, aiData);
-          return {
-            ...baseEnhanced,
-            ...aiData
-          };
+            if (parsed) {
+              const aiData = {
+                explanation: parsed.businessImpact || text.slice(0, 500),
+                aiExplanation: parsed.businessImpact || text.slice(0, 500),
+                aiExploitScenario: parsed.exploitScenario || defaultScenario,
+                aiRemediation: parsed.remediation || defaultRemediation,
+                remediation: parsed.remediation || defaultRemediation,
+                aiMode: 'online',
+                aiEngine: `Google Gemini (${model})`
+              };
+              LLM_CACHE.set(cacheKey, aiData);
+              return {
+                ...baseEnhanced,
+                ...aiData
+              };
+            }
+          }
+        } catch {
+          // Fall back to next model in Gemini cascade (3.8 -> 3.7 -> 3.6 -> 3.5)
         }
       }
     } else if (isOpenAi) {
@@ -457,7 +533,7 @@ export async function enhanceFinding(finding, codeContextOrOptions = {}, options
           model,
           messages: [{ role: 'user', content: structuredPrompt }],
           response_format: { type: 'json_object' },
-          max_tokens: 800,
+          max_tokens: 2048,
           temperature: 0.2
         }),
         signal: AbortSignal.timeout(timeoutMs)
