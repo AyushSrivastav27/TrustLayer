@@ -173,6 +173,19 @@ describe('Rule: crypto/weak-crypto', () => {
       const findings = rule.analyze(context);
       expect(findings.length).toBe(0);
     });
+
+    it('should ignore Math.random for benign UI and DOM identifiers (Module 2 context check)', () => {
+      const code = `
+        const elementId = '#HOT-T' + Math.floor(Math.random() * 1000);
+        const tabId = 'tab-' + Math.random().toString(36);
+        const cardId = 'card_' + Math.floor(Math.random() * 50);
+        const randomColor = '#' + Math.floor(Math.random() * 16777215).toString(16);
+      `;
+      const context = createTestContext(code);
+
+      const findings = rule.analyze(context);
+      expect(findings.length).toBe(0);
+    });
   });
 
   describe('Edge Cases', () => {

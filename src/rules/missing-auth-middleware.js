@@ -53,6 +53,14 @@ function isAuthMiddlewareNode(node) {
 function isSensitiveRoute(routePath, filePath) {
   const normalizedFilePath = filePath.replace(/\\/g, '/');
 
+  // Dedicated webhook endpoints are handled by missing-webhook-verification (mutual exclusivity)
+  if (routePath && /(?:^|\/)(?:stripe-)?webhooks?(?:\/|$)/i.test(routePath)) {
+    return false;
+  }
+  if (/(?:^|\/)(?:routes?\/)?webhook(\.|\/|$)/i.test(normalizedFilePath)) {
+    return false;
+  }
+
   // Explicit public paths are always whitelisted
   if (routePath) {
     for (const pattern of PUBLIC_ROUTE_PATTERNS) {

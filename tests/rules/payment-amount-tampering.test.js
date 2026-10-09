@@ -196,5 +196,36 @@ describe('Rule: payment/payment-amount-tampering', () => {
     const findings = analyzeCode(code);
     expect(findings).toHaveLength(0);
   });
+
+  it('flags deeply nested destructuring and aliased parameters (Module 2)', () => {
+    const code = `
+      router.post('/checkout', async (req, res) => {
+        const { body: { amount: clientPrice } } = req;
+        const payment = await stripe.charges.create({
+          amount: clientPrice,
+          currency: 'usd'
+        });
+        res.json(payment);
+      });
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('critical');
+  });
+
+  it('flags destructured handler parameters flowing into payment calls (Module 2)', () => {
+    const code = `
+      router.post('/checkout', async ({ body: { amount } }, res) => {
+        const payment = await stripe.charges.create({
+          amount,
+          currency: 'usd'
+        });
+        res.json(payment);
+      });
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].severity).toBe('critical');
+  });
 });
 

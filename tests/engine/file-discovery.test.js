@@ -168,6 +168,21 @@ describe('Engine: file-discovery (discoverFiles)', () => {
     expect(relativePaths).toContain('app.js');
     expect(relativePaths).not.toContain('legacy/old.js');
   });
+
+  it('filters out files exceeding maxFileSize ceiling (Module 3 Self-Defense)', async () => {
+    const sizeDir = path.join(tempDir, 'size-test-project');
+    await fs.mkdir(sizeDir, { recursive: true });
+    await fs.writeFile(path.join(sizeDir, 'small.js'), 'console.log("ok");');
+    // 500 bytes file
+    await fs.writeFile(path.join(sizeDir, 'large.js'), 'a'.repeat(500));
+
+    // Limit to 200 bytes
+    const files = await discoverFiles(sizeDir, { maxFileSize: 200 });
+    const relativePaths = files.map(f => path.relative(sizeDir, f).replace(/\\/g, '/'));
+
+    expect(relativePaths).toContain('small.js');
+    expect(relativePaths).not.toContain('large.js');
+  });
 });
 
 

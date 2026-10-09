@@ -162,5 +162,18 @@ describe('Rule: auth/missing-auth-middleware', () => {
     const findings = analyzeCode(code, 'app.js');
     expect(findings).toHaveLength(0);
   });
+
+  it('exempts webhook routes from missing auth middleware to prevent collision with webhook verification (Module 2)', () => {
+    const code = `
+      router.post('/api/payments/webhook', (req, res) => {
+        res.json({ received: true });
+      });
+      router.post('/stripe-webhook', (req, res) => {
+        res.json({ received: true });
+      });
+    `;
+    const findings = analyzeCode(code, 'routes/payments.js');
+    expect(findings).toHaveLength(0);
+  });
 });
 

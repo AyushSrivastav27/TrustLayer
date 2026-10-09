@@ -81,9 +81,17 @@ export function isFindingSuppressed(finding, lines) {
  * @returns {Promise<import('../types/finding.js').Finding[]>}
  */
 export async function scanFile(filePath, rules, content = null) {
-  const fileContent = content !== null ? content : await fs.readFile(filePath, 'utf-8');
+  let fileContent;
+  try {
+    fileContent = content !== null ? content : await fs.readFile(filePath, 'utf-8');
+  } catch (err) {
+    console.warn(`[TrustLayer] Could not read file "${filePath}":`, err.message);
+    return [];
+  }
+
   const lines = fileContent.split(/\r?\n/);
   const { ast } = parseSource(fileContent, filePath);
+  if (!ast) return [];
 
   /** @type {import('../types/rule.js').AnalysisContext} */
   const context = {
@@ -150,8 +158,12 @@ export async function scan(targetPath, options = {}) {
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    const findings = await scanFile(file, rules);
-    allFindings.push(...findings);
+    try {
+      const findings = await scanFile(file, rules);
+      allFindings.push(...findings);
+    } catch (err) {
+      console.warn(`[TrustLayer] Error scanning "${file}":`, err.message);
+    }
 
     if (typeof options.onProgress === 'function') {
       options.onProgress({
