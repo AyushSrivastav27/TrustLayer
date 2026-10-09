@@ -131,5 +131,43 @@ describe('Engine: ast-parser (parseSource)', () => {
     expect(ast.program.body.some(node => node.type === 'TSTypeAliasDeclaration')).toBe(true);
     expect(ast.program.body.some(node => node.type === 'FunctionDeclaration')).toBe(true);
   });
+
+  describe('Scanner Self-Defense: Input Hygiene', () => {
+    it('detects and rejects binary files containing null bytes with an Error', () => {
+      const binaryContent = 'const a = 1;\0\x00\x7fELF\x01\x02';
+      const { ast, error } = parseSource(binaryContent, 'compiled.bin.js');
+
+      expect(ast).toBeNull();
+      expect(error).toBeInstanceOf(Error);
+      expect(error.message).toContain('Binary file detected');
+    });
+
+    it('rejects various non-string types with a TypeError without throwing', () => {
+      const invalidInputs = [123, true, {}, [], () => {}];
+
+      for (const input of invalidInputs) {
+        const { ast, error } = parseSource(input);
+        expect(ast).toBeNull();
+        expect(error).toBeInstanceOf(TypeError);
+        expect(error.message).toContain('Source code must be a string');
+      }
+    });
+
+    it('recovers gracefully from heavily malformed JavaScript without crashing', () => {
+      const malformedPayloads = [
+        'function (((( { { {',
+        'var 123 = = = = ;;;',
+        'import { from ;',
+        'export * * * from'
+      ];
+
+      for (const payload of malformedPayloads) {
+        expect(() => {
+          const res = parseSource(payload);
+          expect(res).toBeDefined();
+        }).not.toThrow();
+      }
+    });
+  });
 });
 

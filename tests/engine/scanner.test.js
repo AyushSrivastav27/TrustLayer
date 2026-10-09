@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { scanFile, scan, SCANNER_VERSION } from '../../src/engine/scanner.js';
+import { scanFile, scan, SCANNER_VERSION, DEFAULT_MAX_FILE_SIZE } from '../../src/engine/scanner.js';
 
 describe('Engine: scanner', () => {
   let tempScanDir;
@@ -268,6 +268,74 @@ describe('Engine: scanner', () => {
         severity: ['low']
       });
       expect(filteredOut.summary.totalFindings).toBe(0);
+    });
+  });
+
+  describe('Scanner Self-Defense & Input Hygiene', () => {
+    it('exports DEFAULT_MAX_FILE_SIZE as 2MB', () => {
+      expect(DEFAULT_MAX_FILE_SIZE).toBe(2 * 1024 * 1024);
+    });
+
+    it('skips oversized files (>2MB) with a warning log in scanFile', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const bigFilePath = path.join(tempScanDir, 'oversized.js');
+      const bigBuffer = Buffer.alloc(2.5 * 1024 * 1024, 'a');
+      await fs.writeFile(bigFilePath, bigBuffer);
+
+      const findings = await scanFile(bigFilePath, [mockVulnerableRule]);
+
+      expect(findings).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping oversized file (>2MB)'));
+
+      warnSpy.mockRestore();
+    });
+
+    it('skips oversized content passed in-memory with a warning log in scanFile', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const bigContent = 'const x = 1;\n'.repeat(200_000); // >2MB
+      const findings = await scanFile('/fake/big.js', [mockVulnerableRule], bigContent);
+
+      expect(findings).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping oversized file (>2MB)'));
+
+      warnSpy.mockRestore();
+    });
+
+    it('skips binary files containing null bytes with a warning log in scanFile', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const binaryFilePath = path.join(tempScanDir, 'binary.js');
+      await fs.writeFile(binaryFilePath, 'const a = 1;\0\x00\x01ELF');
+
+      const findings = await scanFile(binaryFilePath, [mockVulnerableRule]);
+
+      expect(findings).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping binary file'));
+
+      warnSpy.mockRestore();
+    });
+
+    it('skips binary content passed in-memory with a warning log in scanFile', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const findings = await scanFile('/fake/binary.js', [mockVulnerableRule], 'const a = "\0";');
+
+      expect(findings).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping binary file'));
+
+      warnSpy.mockRestore();
+    });
+
+    it('handles non-existent files gracefully without throwing', async () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const findings = await scanFile(path.join(tempScanDir, 'does-not-exist.js'), [mockVulnerableRule]);
+      expect(findings).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Unable to access file'), expect.any(String));
+
+      warnSpy.mockRestore();
     });
   });
 });

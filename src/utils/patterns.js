@@ -80,17 +80,17 @@ export const NON_EXPRESS_OBJECTS = new Set([
 ]);
 
 // SQL keyword patterns for string concatenation detection
-export const SQL_KEYWORDS_REGEX = /\b(SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM|DROP\s+TABLE|ALTER\s+TABLE|UNION\s+ALL|UNION\s+SELECT|WHERE)\b/i;
+export const SQL_KEYWORDS_REGEX = /\b(SELECT|INSERT\s{1,10}INTO|UPDATE|DELETE\s{1,10}FROM|DROP\s{1,10}TABLE|ALTER\s{1,10}TABLE|UNION\s{1,10}ALL|UNION\s{1,10}SELECT|WHERE)\b/i;
 
 // Weak cryptographic algorithms
 export const WEAK_HASH_ALGORITHMS = ['md5', 'sha1', 'des', 'rc4'];
 
 // Hardcoded secrets patterns
 export const SECRET_PATTERNS = [
-  { name: 'Stripe Secret Key', regex: /sk_live_[0-9a-zA-Z]{24,}/ },
-  { name: 'Stripe Test Key', regex: /sk_test_[0-9a-zA-Z]{24,}/ },
-  { name: 'Stripe Webhook Secret', regex: /whsec_[0-9a-zA-Z]{24,}/ },
-  { name: 'Razorpay Key Secret', regex: /rzp_(?:test|live)_[0-9a-zA-Z]{14,}/ },
+  { name: 'Stripe Secret Key', regex: /sk_live_[0-9a-zA-Z]{24,128}/ },
+  { name: 'Stripe Test Key', regex: /sk_test_[0-9a-zA-Z]{24,128}/ },
+  { name: 'Stripe Webhook Secret', regex: /whsec_[0-9a-zA-Z]{24,128}/ },
+  { name: 'Razorpay Key Secret', regex: /rzp_(?:test|live)_[0-9a-zA-Z]{14,128}/ },
   { name: 'AWS Access Key ID', regex: /(?:A3T[A-Z0-9]|AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}/ },
-  { name: 'Generic API Key / Secret', regex: /(?:api[_-]?key|jwt[_-]?secret|jwt[_-]?token|app[_-]?secret|private[_-]?key)\s*[:=]\s*['"`][A-Za-z0-9+/=_-]{16,}['"`]/i }
+  { name: 'Generic API Key / Secret', regex: /(?:api[_-]?key|jwt[_-]?secret|jwt[_-]?token|app[_-]?secret|private[_-]?key)\s*[:=]\s*(['"`])[A-Za-z0-9+/=_-]{16,4096}\1/i }
 ];

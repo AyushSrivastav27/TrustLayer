@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { discoverFiles } from './file-discovery.js';
+import { discoverFiles, DEFAULT_MAX_FILE_SIZE } from './file-discovery.js';
 import { parseSource } from './ast-parser.js';
 import { loadRules } from './rule-registry.js';
 import { calculateSeverityCounts } from '../types/report.js';
@@ -72,18 +72,68 @@ export function isFindingSuppressed(finding, lines) {
   return false;
 }
 
+export { DEFAULT_MAX_FILE_SIZE };
+
 /**
  * Scans a single file against an array of rules.
  *
  * @param {string} filePath - Path to file
  * @param {import('../types/rule.js').Rule[]} rules - Rules to run
  * @param {string} [content] - Optional pre-read file content
+ * @param {Object} [options]
+ * @param {number} [options.maxFileSize] - Maximum allowed file size in bytes
  * @returns {Promise<import('../types/finding.js').Finding[]>}
  */
-export async function scanFile(filePath, rules, content = null) {
-  const fileContent = content !== null ? content : await fs.readFile(filePath, 'utf-8');
+export async function scanFile(filePath, rules, content = null, options = {}) {
+  const maxFileSize = options.maxFileSize !== undefined ? options.maxFileSize : DEFAULT_MAX_FILE_SIZE;
+
+  let fileContent;
+  if (content !== null) {
+    if (typeof content !== 'string') {
+      console.warn(`[TrustLayer] Invalid non-string content provided for "${filePath}".`);
+      return [];
+    }
+    if (maxFileSize !== null && maxFileSize !== undefined && maxFileSize !== Infinity && Buffer.byteLength(content, 'utf8') > maxFileSize) {
+      console.warn(`[TrustLayer] Skipping oversized file (>2MB): ${filePath}`);
+      return [];
+    }
+    if (content.includes('\0')) {
+      console.warn(`[TrustLayer] Skipping binary file: ${filePath}`);
+      return [];
+    }
+    fileContent = content;
+  } else {
+    try {
+      const stat = await fs.stat(filePath);
+      if (maxFileSize !== null && maxFileSize !== undefined && maxFileSize !== Infinity && stat.size > maxFileSize) {
+        console.warn(`[TrustLayer] Skipping oversized file (>2MB): ${filePath}`);
+        return [];
+      }
+    } catch (err) {
+      console.warn(`[TrustLayer] Unable to access file "${filePath}":`, err.message);
+      return [];
+    }
+
+    try {
+      fileContent = await fs.readFile(filePath, 'utf-8');
+    } catch (err) {
+      console.warn(`[TrustLayer] Unable to read file "${filePath}":`, err.message);
+      return [];
+    }
+
+    if (fileContent.includes('\0')) {
+      console.warn(`[TrustLayer] Skipping binary file: ${filePath}`);
+      return [];
+    }
+  }
+
   const lines = fileContent.split(/\r?\n/);
-  const { ast } = parseSource(fileContent, filePath);
+  const { ast, error: parseError } = parseSource(fileContent, filePath);
+
+  if (parseError && !ast) {
+    console.warn(`[TrustLayer] Skipping unparseable file "${filePath}":`, parseError.message);
+    return [];
+  }
 
   /** @type {import('../types/rule.js').AnalysisContext} */
   const context = {
@@ -134,6 +184,7 @@ export async function scanFile(filePath, rules, content = null) {
  * @param {import('../types/rule.js').Rule[]} [options.rules] - Optional preloaded rules
  * @param {string} [options.rulesDir] - Custom directory to load rules from
  * @param {string[]} [options.ignore] - Additional glob ignore patterns
+ * @param {number} [options.maxFileSize] - Maximum allowed file size in bytes
  * @param {(progress: { current: number, total: number, file: string, findingsCount: number }) => void} [options.onProgress]
  * @returns {Promise<import('../types/report.js').ScanReport>}
  */
@@ -144,13 +195,13 @@ export async function scan(targetPath, options = {}) {
   const rules = options.rules || await loadRules(options.rulesDir);
   const files = options.files
     ? options.files.map((f) => path.resolve(f))
-    : await discoverFiles(resolvedTarget, { ignore: options.ignore });
+    : await discoverFiles(resolvedTarget, { ignore: options.ignore, maxFileSize: options.maxFileSize });
 
   const allFindings = [];
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    const findings = await scanFile(file, rules);
+    const findings = await scanFile(file, rules, null, options);
     allFindings.push(...findings);
 
     if (typeof options.onProgress === 'function') {
