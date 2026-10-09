@@ -10,6 +10,7 @@
  * @typedef {Object} Finding
  * @property {string} ruleId - Unique rule identifier (e.g. 'payment/client-controlled-amount')
  * @property {'critical'|'high'|'medium'|'low'} severity - Severity rating
+ * @property {'secrets'|'injection'|'payment'|'auth'} [category] - Security category classification
  * @property {string} file - Path of the file where finding was detected
  * @property {number} line - Line number of the vulnerability (1-indexed)
  * @property {number} [endLine] - Optional end line number

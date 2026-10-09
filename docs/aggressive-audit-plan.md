@@ -43,10 +43,10 @@ Identify and remove dead code, unused helper exports, duplicated AST traversal u
 - `src/cli.js`
 
 ### 📋 Audit Checkpoints
-- [ ] **Unused Helper Functions:** Check if any functions exported from `src/utils/ast-helpers.js` are never called across any of the 7 rules or engine files.
-- [ ] **Redundant Pattern Constants:** Cross-examine `patterns.js` against individual rule definitions to ensure regexes or sink arrays aren't re-declared locally.
-- [ ] **Shadowed Variables & Imports:** Verify Babel types (`t.*`) are imported cleanly and not redundantly declared.
-- [ ] **Type Contract Adherence:** Ensure all fields defined in `src/types/finding.js` and `src/types/rule.js` match what the scanner actually consumes and emits.
+- [x] **Unused Helper Functions:** Check if any functions exported from `src/utils/ast-helpers.js` are never called across any of the 7 rules or engine files.
+- [x] **Redundant Pattern Constants:** Cross-examine `patterns.js` against individual rule definitions to ensure regexes or sink arrays aren't re-declared locally.
+- [x] **Shadowed Variables & Imports:** Verify Babel types (`t.*`) are imported cleanly and not redundantly declared.
+- [x] **Type Contract Adherence:** Ensure all fields defined in `src/types/finding.js` and `src/types/rule.js` match what the scanner actually consumes and emits.
 
 ---
 

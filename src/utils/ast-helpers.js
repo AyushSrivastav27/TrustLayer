@@ -1,4 +1,5 @@
 import * as t from '@babel/types';
+import { HTTP_SOURCES } from './patterns.js';
 
 /**
  * Checks if a CallExpression matches an object method call, e.g. `db.query()` or `stripe.charges.create()`.
@@ -92,7 +93,7 @@ export function getExpressRouteDetails(node) {
  * @param {string[]} [sources=HTTP_SOURCES] - List of property names to check against
  * @returns {boolean}
  */
-export function isReqAccess(node, sources = ['body', 'query', 'params', 'headers', 'cookies']) {
+export function isReqAccess(node, sources = HTTP_SOURCES) {
   if (!t.isMemberExpression(node)) return false;
 
   // Direct: req.body
