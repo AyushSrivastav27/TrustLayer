@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { resolveReportTarget, generateMarkdownReport } from '../src/cli.js';
+import { resolveReportTarget, generateMarkdownReport, normalizeCliArgs } from '../src/cli.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -91,6 +91,31 @@ describe('CLI: resolveReportTarget unit tests', () => {
     const result = resolveReportTarget('   custom/path.json   ', 'markdown');
     expect(result.format).toBe('json');
     expect(result.filePath).toBe(path.resolve(process.cwd(), 'custom/path.json'));
+  });
+});
+
+describe('CLI: normalizeCliArgs unit tests', () => {
+  it('converts -ai typo into --ai flag', () => {
+    expect(normalizeCliArgs(['node', 'src/cli.js', 'scan', '-ai'])).toEqual([
+      'node',
+      'src/cli.js',
+      'scan',
+      '--ai'
+    ]);
+  });
+
+  it('leaves standard flags untouched', () => {
+    expect(normalizeCliArgs(['scan', '-a', '-v', '--ai'])).toEqual([
+      'scan',
+      '-a',
+      '-v',
+      '--ai'
+    ]);
+  });
+
+  it('safely handles non-array inputs', () => {
+    expect(normalizeCliArgs(null)).toBeNull();
+    expect(normalizeCliArgs(undefined)).toBeUndefined();
   });
 });
 
@@ -275,6 +300,50 @@ describe('CLI: Subprocess execution and exit codes', () => {
     const content = JSON.parse(await fs.readFile(sarifPath, 'utf-8'));
     expect(content.version).toBe('2.1.0');
     expect(content.runs[0].tool.driver.name).toBe('TrustLayer');
+  }, 15000);
+
+  it('supports shorthand -a flag for AI mode', async () => {
+    const res = await runCli(['scan', 'demo', '-a', '--no-report', '--no-banner', '--fail-on', 'none']);
+    expect(res.code).toBe(0);
+    expect(res.stdout).toMatch(/AI Mode: (🔌 OFFLINE|🌐 ONLINE)/);
+    expect(res.stdout).toContain('Correlated Attack Chains');
+  }, 15000);
+
+  it('normalizes -ai typo and successfully runs scan in AI mode', async () => {
+    const res = await runCli(['scan', 'demo', '-ai', '--no-report', '--no-banner', '--fail-on', 'none']);
+    expect(res.code).toBe(0);
+    expect(res.stdout).toMatch(/AI Mode: (🔌 OFFLINE|🌐 ONLINE)/);
+    expect(res.stdout).toContain('Correlated Attack Chains');
+  }, 15000);
+
+  it('supports combined shorthand flags -av (AI mode + verbose)', async () => {
+    const res = await runCli(['scan', 'demo/routes/checkout.js', '-av', '--no-report', '--no-banner', '--fail-on', 'none']);
+    expect(res.code).toBe(0);
+    expect(res.stdout).toContain('Fix:');
+    expect(res.stdout).toContain('Exploit:');
+  }, 30000);
+
+  it('exits with code 2 on unknown option syntax error', async () => {
+    const res = await runCli(['scan', 'demo', '--non-existent-option-xyz', '--no-banner']);
+    expect(res.code).toBe(2);
+  }, 10000);
+
+  it('exports valid SARIF document with relative repo paths and driver rules', async () => {
+    const sarifPath = path.join(tempDir, 'demo-findings.sarif');
+    const res = await runCli(['scan', 'demo', '-o', sarifPath, '-f', 'sarif', '--no-banner', '--fail-on', 'none']);
+    expect(res.code).toBe(0);
+
+    const exists = await fs.stat(sarifPath).then(() => true).catch(() => false);
+    expect(exists).toBe(true);
+
+    const content = JSON.parse(await fs.readFile(sarifPath, 'utf-8'));
+    expect(content.version).toBe('2.1.0');
+    expect(content.runs[0].results.length).toBeGreaterThan(0);
+    const firstResult = content.runs[0].results[0];
+    expect(firstResult.locations[0].physicalLocation.artifactLocation.uri).not.toMatch(/^\//);
+    expect(firstResult.locations[0].physicalLocation.artifactLocation.uriBaseId).toBe('%SRCROOT%');
+    expect(content.runs[0].tool.driver.rules.length).toBeGreaterThan(0);
+    expect(content.runs[0].tool.driver.rules[0]).toHaveProperty('defaultConfiguration');
   }, 15000);
 });
 

@@ -116,19 +116,19 @@ Audit CLI flag combinations, error reporting, report output hygiene, and AI degr
 - `src/ai/enhancer.js`
 
 ### 📋 Audit Checkpoints
-- [ ] **CLI Flag Usability & POSIX Compliance:**
+- [x] **CLI Flag Usability & POSIX Compliance:**
   - Ensure clear error messaging when users pass malformed flags (e.g. `-ai` vs `--ai`).
   - Add shorthand `-a` for `--ai` to prevent user typos.
-- [ ] **Exit Code Contract Verification:**
+- [x] **Exit Code Contract Verification:**
   - `0`: Scan completed cleanly, or findings below `--fail-on` threshold.
   - `1`: Vulnerabilities found equal to or exceeding `--fail-on` threshold.
   - `2`: System, I/O, or user syntax error (missing target, invalid format, missing directory).
-- [ ] **SARIF v2.1.0 Validation:**
+- [x] **SARIF v2.1.0 Validation:**
   - Verify exported `.sarif` files against official JSON Schema validator for OASIS SARIF v2.1.0.
-  - Ensure GitHub Code Scanning rejects zero fields.
-- [ ] **AI Graceful Degradation & Timeout Integrity:**
-  - Simulate network partition, 429 Rate Limit, and 500 Server Error from Gemini/OpenAI API.
-  - Confirm scan always outputs deterministic report within 5-second timeout and never hangs.
+  - Ensure GitHub Code Scanning rejects zero fields (repo-relative URIs, `%SRCROOT%` base, markdown remediation, tags).
+- [x] **AI Graceful Degradation & Timeout Integrity:**
+  - Simulate network partition, 429 Rate Limit, and 500 Server Error from Gemini/Claude/OpenAI API.
+  - Confirm scan always outputs deterministic report within failover timeouts and never hangs.
 
 ---
 
