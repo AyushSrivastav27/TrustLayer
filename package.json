@@ -22,7 +22,8 @@
     "test:watch": "vitest",
     "scan:demo": "node src/cli.js scan ./demo",
     "scan:fixed": "node src/cli.js scan ./demo-fixed",
-    "demo:compare": "node scripts/demo-compare.js"
+    "demo:compare": "node scripts/demo-compare.js",
+    "benchmark": "node scripts/benchmark.js"
   },
   "keywords": [
     "security",
