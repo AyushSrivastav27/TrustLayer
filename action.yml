@@ -1,0 +1,42 @@
+name: 'TrustLayer Security Scanner'
+description: 'Fast, deterministic AST-based static security scanner for Node.js and Express APIs'
+author: 'Vikalp Pratap Yadav'
+
+inputs:
+  target:
+    description: 'Path or directory to scan'
+    required: false
+    default: '.'
+  format:
+    description: 'Report output format (text, json, markdown, sarif)'
+    required: false
+    default: 'sarif'
+  output:
+    description: 'Output report file path'
+    required: false
+    default: 'trustlayer-results.sarif'
+  fail-on:
+    description: 'Minimum severity level to trigger non-zero exit code (critical, high, medium, low, none)'
+    required: false
+    default: 'high'
+  ai:
+    description: 'Enable AI-powered exploit explanation and attack chain correlation'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Run TrustLayer Scanner
+      shell: bash
+      run: |
+        CMD="node ${{ github.action_path }}/src/cli.js scan ${{ inputs.target }} -f ${{ inputs.format }} -o ${{ inputs.output }} --fail-on ${{ inputs.fail-on }} --no-banner"
+        if [ "${{ inputs.ai }}" = "true" ]; then
+          CMD="$CMD --ai"
+        fi
+        $CMD

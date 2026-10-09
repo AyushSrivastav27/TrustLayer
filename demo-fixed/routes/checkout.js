@@ -1,10 +1,12 @@
 import express from 'express';
 import Stripe from 'stripe';
 import { requireAuth } from '../middleware/auth.js';
+import { checkoutLimiter } from '../middleware/rate-limiter.js';
 import { db } from '../../demo/db/setup.js';
 
 const router = express.Router();
 router.use(requireAuth);
+router.use(checkoutLimiter);
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'dummy_stripe_key_not_configured');
 
