@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 /**
  * Generates a formatted JSON representation of a security scan report.
  *
@@ -33,16 +35,25 @@ export function toSarif(report) {
     ? findings.filter(f => f && typeof f === 'object')
     : [];
 
-  const sarifResults = safeFindings.map(f => {
-    const levelMap = {
-      critical: 'error',
-      high: 'error',
-      medium: 'warning',
-      low: 'note'
-    };
+  const levelMap = {
+    critical: 'error',
+    high: 'error',
+    medium: 'warning',
+    low: 'note'
+  };
 
+  const sarifResults = safeFindings.map(f => {
     const normalizedSeverity = (f.severity || 'medium').toLowerCase();
-    const filePath = (f.file || '').replace(/\\/g, '/');
+    let filePath = (f.file || '').replace(/\\/g, '/');
+    if (path.isAbsolute(f.file || '')) {
+      const cwd = process.cwd().replace(/\\/g, '/');
+      if (filePath.startsWith(cwd + '/')) {
+        filePath = filePath.slice(cwd.length + 1);
+      }
+    }
+    if (filePath.startsWith('./')) {
+      filePath = filePath.slice(2);
+    }
 
     const region = {
       startLine: typeof f.line === 'number' && f.line > 0 ? f.line : 1,
@@ -64,7 +75,8 @@ export function toSarif(report) {
         {
           physicalLocation: {
             artifactLocation: {
-              uri: filePath
+              uri: filePath,
+              uriBaseId: '%SRCROOT%'
             },
             region
           }
@@ -87,14 +99,32 @@ export function toSarif(report) {
             informationUri: 'https://github.com/vikalp1817243/TrustLayer',
             rules: uniqueRuleIds.map(id => {
               const matching = safeFindings.find(f => f.ruleId === id);
+              const category = matching?.category || id.split('/')[0] || 'security';
+              const severity = (matching?.severity || 'medium').toLowerCase();
               return {
                 id,
                 name: id.split('/').pop() || id,
                 shortDescription: {
                   text: matching?.message || id
                 },
+                fullDescription: {
+                  text: matching?.explanation || matching?.message || id
+                },
+                helpUri: 'https://github.com/vikalp1817243/TrustLayer',
                 help: {
-                  text: matching?.remediation || matching?.explanation || `Security rule: ${id}`
+                  text: matching?.remediation || matching?.explanation || `Security rule: ${id}`,
+                  markdown: `### Vulnerability\n${matching?.explanation || matching?.message || id}\n\n### Remediation\n\`\`\`javascript\n${matching?.remediation || '// Remediate vulnerability'}\n\`\`\``
+                },
+                properties: {
+                  category,
+                  tags: [
+                    'security',
+                    category,
+                    `severity/${severity}`
+                  ]
+                },
+                defaultConfiguration: {
+                  level: levelMap[severity] || 'warning'
                 }
               };
             })

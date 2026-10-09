@@ -90,9 +90,10 @@ const EXAMPLES_HELP = `
 Examples:
   $ trustlayer                               Scan current directory (saves SECURITY-REPORT.md)
   $ trustlayer scan ./demo                   Scan a specific project directory
-  $ trustlayer scan --ai                     Enhance scan with AI attack chains & exploit scenarios
-  $ trustlayer scan --ai --api-key <key>     Run online AI analysis with provided key (Gemini / OpenAI)
+  $ trustlayer scan -a                       Enhance scan with AI attack chains & exploit scenarios
+  $ trustlayer scan --ai --api-key <key>     Run online AI analysis with provided key (Gemini / Claude / OpenAI)
   $ trustlayer scan ./demo -v                Show verbose remediation code snippets in terminal
+  $ trustlayer scan ./demo -av               Combined flags: AI attack chains + verbose terminal output
   $ trustlayer scan ./routes/checkout.js     Scan a single target file
   $ trustlayer scan --staged                 Scan only files staged in git index (pre-commit mode)
   $ trustlayer scan -s critical,high         Filter findings to critical and high only
@@ -109,7 +110,13 @@ program
   .name('trustlayer')
   .description('Deterministic static security scanner for Node.js/Express APIs')
   .version(SCANNER_VERSION)
-  .addHelpText('after', EXAMPLES_HELP);
+  .addHelpText('after', EXAMPLES_HELP)
+  .exitOverride((err) => {
+    if (err.code === 'commander.helpDisplayed' || err.code === 'commander.version') {
+      process.exit(0);
+    }
+    process.exit(2);
+  });
 
 program
   .command('scan', { isDefault: true })
@@ -121,7 +128,7 @@ program
   .option('-s, --severity <levels>', 'Filter findings by severity (comma-separated: critical, high, medium, low)')
   .option('-c, --category <categories>', 'Filter findings by category (comma-separated: secrets, injection, payment, auth)')
   .option('--fail-on <level>', 'Minimum severity level to trigger exit code 1 (critical, high, medium, low, none)', 'high')
-  .option('--ai', 'Enable AI-powered exploit scenario generation and attack chain correlation')
+  .option('-a, --ai', 'Enable AI-powered exploit scenario generation and attack chain correlation')
   .option('--api-key <key>', 'API key for online AI analysis (Google Gemini or OpenAI)')
   .option('-v, --verbose', 'Display exploit scenarios and remediation code snippets in terminal output')
   .option('--staged', 'Scan only files staged in git index (pre-commit mode)')
@@ -242,9 +249,12 @@ program
       }
     }
 
+    const isInteractive = Boolean(process.stdout.isTTY && !process.env.CI);
+
     const spinner = ora({
       text: `Scanning files in ${chalk.cyan(targetDesc)}...`,
-      color: 'cyan'
+      color: 'cyan',
+      isSilent: !isInteractive
     }).start();
 
     try {
@@ -265,7 +275,8 @@ program
       if (options.ai) {
         const aiSpinner = ora({
           text: 'Enhancing findings with AI exploit scenarios and correlating attack chains...',
-          color: 'magenta'
+          color: 'magenta',
+          isSilent: !isInteractive
         }).start();
 
         try {
@@ -394,10 +405,27 @@ program
       process.exit(hasBlockers ? 1 : 0);
 
     } catch (err) {
-      spinner.fail(chalk.red(`Scan failed: ${err.message}`));
+      if (spinner.isSpinning) {
+        spinner.stop();
+      }
+      console.error(chalk.red(`\n ❌ Scan failed: ${err.message}\n`));
       process.exit(2);
     }
   });
+
+/**
+ * Normalizes CLI arguments to support ergonomics and prevent common user typos (e.g. -ai -> --ai).
+ *
+ * @param {string[]} argv
+ * @returns {string[]}
+ */
+function normalizeCliArgs(argv) {
+  if (!Array.isArray(argv)) return argv;
+  return argv.map(arg => {
+    if (arg === '-ai') return '--ai';
+    return arg;
+  });
+}
 
 let isDirectRun = false;
 if (process.argv[1]) {
@@ -411,7 +439,7 @@ if (process.argv[1]) {
 }
 
 if (isDirectRun) {
-  program.parse(process.argv);
+  program.parse(normalizeCliArgs(process.argv));
 }
 
-export { program, generateMarkdownReport };
+export { program, generateMarkdownReport, normalizeCliArgs };
