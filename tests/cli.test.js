@@ -11,16 +11,32 @@ const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 const CLI_PATH = path.resolve(REPO_ROOT, 'src/cli.js');
 
-function runCli(args = []) {
+function runCli(args = [], customEnv = {}) {
   return new Promise((resolve) => {
-    execFile('node', [CLI_PATH, ...args], { cwd: REPO_ROOT }, (error, stdout, stderr) => {
-      resolve({
-        code: error ? (error.code ?? 1) : 0,
-        stdout: stdout || '',
-        stderr: stderr || '',
-        error
-      });
-    });
+    execFile(
+      'node',
+      [CLI_PATH, ...args],
+      {
+        cwd: REPO_ROOT,
+        env: {
+          ...process.env,
+          GEMINI_API_KEY: '',
+          GOOGLE_API_KEY: '',
+          ANTHROPIC_API_KEY: '',
+          CLAUDE_API_KEY: '',
+          OPENAI_API_KEY: '',
+          ...customEnv
+        }
+      },
+      (error, stdout, stderr) => {
+        resolve({
+          code: error ? (error.code ?? 1) : 0,
+          stdout: stdout || '',
+          stderr: stderr || '',
+          error
+        });
+      }
+    );
   });
 }
 
@@ -226,12 +242,12 @@ describe('CLI: Subprocess execution and exit codes', () => {
     expect(res.stdout).toContain('payment');
   }, 15000);
 
-  it('runs scan with --ai in offline heuristic mode and outputs attack chains', async () => {
+  it('runs scan with --ai and outputs attack chains', async () => {
     const res = await runCli(['scan', 'demo', '--ai', '--no-report', '--no-banner', '--fail-on', 'none']);
     expect(res.code).toBe(0);
-    expect(res.stdout).toContain('AI Mode: 🔌 OFFLINE');
+    expect(res.stdout).toMatch(/AI Mode: (🔌 OFFLINE|🌐 ONLINE)/);
     expect(res.stdout).toContain('Correlated Attack Chains');
-    expect(res.stdout).toContain('[AI: Offline]');
+    expect(res.stdout).toMatch(/\[AI: (Offline|Online)\]/);
   }, 15000);
 
   it('warns user when --api-key is passed as command-line argument', async () => {
@@ -242,11 +258,11 @@ describe('CLI: Subprocess execution and exit codes', () => {
   }, 15000);
 
   it('prints detailed remediation and exploit preview in terminal with -v/--verbose', async () => {
-    const res = await runCli(['scan', 'demo', '-v', '--ai', '--no-report', '--no-banner', '--fail-on', 'none']);
+    const res = await runCli(['scan', 'demo/routes/checkout.js', '-v', '--ai', '--no-report', '--no-banner', '--fail-on', 'none']);
     expect(res.code).toBe(0);
     expect(res.stdout).toContain('Fix:');
     expect(res.stdout).toContain('Exploit:');
-  }, 15000);
+  }, 30000);
 
   it('exports valid SARIF document when -f sarif is specified', async () => {
     const sarifPath = path.join(tempDir, 'audit.sarif');

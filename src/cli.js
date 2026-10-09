@@ -216,6 +216,12 @@ program
       console.warn(chalk.yellow(' ⚠️  Warning: Passing API keys via command-line arguments may expose them in shell history. Consider using the GEMINI_API_KEY environment variable or a local .env file instead.\n'));
     } else if (process.env.GEMINI_API_KEY) {
       apiKey = process.env.GEMINI_API_KEY.trim();
+    } else if (process.env.GOOGLE_API_KEY) {
+      apiKey = process.env.GOOGLE_API_KEY.trim();
+    } else if (process.env.ANTHROPIC_API_KEY) {
+      apiKey = process.env.ANTHROPIC_API_KEY.trim();
+    } else if (process.env.CLAUDE_API_KEY) {
+      apiKey = process.env.CLAUDE_API_KEY.trim();
     } else if (process.env.OPENAI_API_KEY) {
       apiKey = process.env.OPENAI_API_KEY.trim();
     }
@@ -223,8 +229,13 @@ program
     // Display AI mode banner if --ai requested
     if (options.ai) {
       if (apiKey) {
-        const isGemini = apiKey.startsWith('AIza') || Boolean(process.env.GEMINI_API_KEY);
-        const providerName = isGemini ? 'Google Gemini 3.8 Flash' : 'OpenAI gpt-4o-mini';
+        const isClaude = apiKey.startsWith('sk-ant-') || Boolean(process.env.ANTHROPIC_API_KEY) || Boolean(process.env.CLAUDE_API_KEY);
+        const isGemini = !isClaude && (apiKey.startsWith('AIza') || apiKey.startsWith('AQ.') || Boolean(process.env.GEMINI_API_KEY) || Boolean(process.env.GOOGLE_API_KEY));
+        const providerName = isClaude
+          ? 'Anthropic Claude (Auto-Fallback: 3.7 Sonnet / 3.5 Sonnet / 3.5 Haiku)'
+          : isGemini
+            ? 'Google Gemini (Auto-Fallback: 3.8 / 3.7 / 3.6 / 3.5 Flash)'
+            : 'OpenAI gpt-4o-mini';
         console.log(chalk.cyan.bold(` ⚡ AI Mode: 🌐 ONLINE (${providerName}) — Generating contextual exploit diffs & attack chains\n`));
       } else {
         console.log(chalk.blue.bold(' 🛡️  AI Mode: 🔌 OFFLINE (Deterministic Heuristic Engine — Zero-Network Privacy)\n'));
