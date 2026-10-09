@@ -3,6 +3,40 @@ const traverse = _traverse.default || _traverse;
 import { extractSnippet } from '../utils/ast-helpers.js';
 import { WEAK_HASH_ALGORITHMS } from '../utils/patterns.js';
 
+function isSecuritySensitiveRandomName(name) {
+  if (!name || typeof name !== 'string') return false;
+
+  // Benign UI, styling, DOM, or test identifiers
+  if (/(?:element|component|tab|card|row|col|node|dom|view|widget|item|color|bg|style|css|html|btn|button|test|dummy|demo|label|heading|avatar|badge|modal)id/i.test(name)) {
+    return false;
+  }
+  if (/^(?:element|component|tab|card|row|col|node|dom|view|widget|item|color|bg|style|css|html|btn|button|test)Id$/i.test(name)) {
+    return false;
+  }
+
+  // Pure generic UI ID check (e.g. element id generation)
+  if (/^(?:id|uniqueId|randomId|uid)$/i.test(name)) {
+    return false;
+  }
+
+  // Explicit security-sensitive identifiers: token, secret, session, nonce, salt, password, csrf, bearer, apikey
+  if (/token|secret|session|nonce|salt|password|csrf|bearer|apikey|api_key/i.test(name)) {
+    return true;
+  }
+
+  // Key or Id in security/auth context
+  if (/(?:auth|user|session|account|login|cred|priv|secure|access|refresh|token|secret)[_-]?(?:id|key)/i.test(name)) {
+    return true;
+  }
+
+  // Cryptographic key variable names
+  if (/^(?:secretKey|apiKey|privateKey|publicKey|authKey|encryptionKey|sessionKey|signKey|masterKey|key)$/i.test(name)) {
+    return true;
+  }
+
+  return false;
+}
+
 export const rule = {
   id: 'crypto/weak-crypto',
   name: 'Weak Cryptography or Insecure Randomness',
@@ -101,7 +135,7 @@ export const rule = {
               name = funcParent?.node?.id?.name || funcParent?.parentPath?.node?.id?.name || '';
             }
             
-            if (/token|secret|key|id|session/i.test(name)) {
+            if (isSecuritySensitiveRandomName(name)) {
               findings.push({
                 ruleId: rule.id,
                 severity: rule.severity,

@@ -8,6 +8,15 @@ import * as babelParser from '@babel/parser';
  * @returns {{ ast: object|null, error: Error|null }}
  */
 export function parseSource(sourceCode, filePath = '') {
+  if (typeof sourceCode !== 'string') {
+    return { ast: null, error: new Error('Source code must be a string') };
+  }
+
+  // Self-defense: reject binary files accidentally with JS extensions
+  if (sourceCode.includes('\0')) {
+    return { ast: null, error: new Error('Binary file detected: skipping AST parsing') };
+  }
+
   try {
     const ast = babelParser.parse(sourceCode, {
       sourceType: 'unambiguous',

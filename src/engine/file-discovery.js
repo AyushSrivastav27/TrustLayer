@@ -56,8 +56,25 @@ export async function discoverFiles(targetPath, options = {}) {
     cwd: resolvedPath,
     absolute: true,
     nodir: true,
+    follow: false,
     ignore
   });
 
-  return files;
+  const maxFileSize = typeof options.maxFileSize === 'number' ? options.maxFileSize : 2 * 1024 * 1024;
+  const validFiles = [];
+
+  for (const file of files) {
+    try {
+      const stat = fs.statSync(file);
+      if (stat.size <= maxFileSize) {
+        validFiles.push(file);
+      } else {
+        console.warn(`[TrustLayer] Skipping file exceeding size limit (${(stat.size / (1024 * 1024)).toFixed(2)}MB > ${(maxFileSize / (1024 * 1024)).toFixed(0)}MB): ${file}`);
+      }
+    } catch {
+      // ignore stat errors
+    }
+  }
+
+  return validFiles;
 }

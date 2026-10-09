@@ -47,8 +47,8 @@ export const SENSITIVE_ROUTE_PATTERNS = [
 
 // Public route path keywords that do not need authentication
 export const PUBLIC_ROUTE_PATTERNS = [
-  /\/api\/(login|register|signup|auth|public|health|products?|items?|catalog)/i,
-  /\/(login|register|signup|auth|public|health|products?|items?|catalog)/i
+  /\/api\/(login|register|signup|auth|public|health|products?|items?|catalog|webhooks?)/i,
+  /\/(login|register|signup|auth|public|health|products?|items?|catalog|webhooks?)/i
 ];
 
 // Known payment SDK sink method names (object.method or chain)
@@ -68,7 +68,7 @@ export const WEBHOOK_VERIFIERS = [
 ];
 
 // Database query sinks for SQL injection detection
-export const DB_SINKS = ['query', 'execute', 'exec', 'run', 'all', 'get'];
+export const DB_SINKS = ['query', 'execute', 'exec', 'run', 'all', 'get', 'raw', '$queryRawUnsafe', '$executeRawUnsafe'];
 export const DB_OBJECTS = ['db', 'pool', 'connection', 'client', 'knex', 'sequelize', 'prisma'];
 
 // Non-Express receiver objects to prevent false-positive route detections

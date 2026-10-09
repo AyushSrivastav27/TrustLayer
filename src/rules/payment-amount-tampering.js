@@ -69,6 +69,53 @@ function isPaymentSinkCall(node) {
 }
 
 /**
+ * Recursively checks if a target variable was extracted from client request inputs
+ * via standard, aliased, or nested destructuring (e.g. { body: { amount: customPrice } } = req).
+ *
+ * @param {object} pattern - Babel ObjectPattern node
+ * @param {object} init - Babel expression being destructured
+ * @param {string} targetVar - Name of variable being checked
+ * @returns {boolean}
+ */
+function isVarTaintedInPattern(pattern, init, targetVar) {
+  if (!pattern || !t.isObjectPattern(pattern)) return false;
+
+  const isReqRoot = t.isIdentifier(init) && (init.name === 'req' || init.name === 'request');
+  const isReqMember = isReqAccess(init);
+
+  if (!isReqRoot && !isReqMember) return false;
+
+  function checkPattern(pat, inHttpSource) {
+    if (!t.isObjectPattern(pat)) return false;
+
+    for (const prop of pat.properties) {
+      if (!t.isObjectProperty(prop)) continue;
+
+      const keyName = t.isIdentifier(prop.key) ? prop.key.name : (t.isStringLiteral(prop.key) ? prop.key.value : null);
+
+      if (t.isObjectPattern(prop.value)) {
+        const nextInHttpSource = inHttpSource || (isReqRoot && (keyName === 'body' || keyName === 'query' || keyName === 'params'));
+        if (checkPattern(prop.value, nextInHttpSource)) {
+          return true;
+        }
+      } else if (t.isIdentifier(prop.value)) {
+        const valName = prop.value.name;
+        if (valName === targetVar) {
+          if (inHttpSource || isReqMember) {
+            if (AMOUNT_KEYS.includes(keyName) || AMOUNT_KEYS.includes(valName)) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  return checkPattern(pattern, isReqMember);
+}
+
+/**
  * Checks if a given AST expression is tainted by client-controlled request input.
  * Recursively resolves variables within the local scope.
  *
@@ -122,24 +169,24 @@ function isTaintedByClient(node, scope, visitedBindings = new Set()) {
     const binding = scope.getBinding(varName);
     if (!binding || !binding.path) return false;
 
-    // Destructuring: const { amount } = req.body; or const { price: userPrice } = req.body;
+    // Check function parameter destructuring: e.g. ({ body: { amount } }, res)
+    if (binding.kind === 'param' && binding.path) {
+      const paramNode = binding.path.node;
+      if (t.isObjectPattern(paramNode)) {
+        if (isVarTaintedInPattern(paramNode, t.identifier('req'), varName)) {
+          return true;
+        }
+      }
+    }
+
+    // Destructuring & assignments: const { amount } = req.body; or const { body: { amount: price } } = req;
     if (binding.path.isVariableDeclarator()) {
       const declNode = binding.path.node;
       const init = declNode.init;
 
       if (t.isObjectPattern(declNode.id)) {
-        // Check if init is an HTTP source (e.g. req.body)
-        if (isReqAccess(init)) {
-          // If the variable was destructured from req.body/req.query with an amount key
-          for (const prop of declNode.id.properties) {
-            if (t.isObjectProperty(prop)) {
-              const keyName = t.isIdentifier(prop.key) ? prop.key.name : (t.isStringLiteral(prop.key) ? prop.key.value : null);
-              const valName = t.isIdentifier(prop.value) ? prop.value.name : null;
-              if (valName === varName && (AMOUNT_KEYS.includes(keyName) || AMOUNT_KEYS.includes(varName))) {
-                return true;
-              }
-            }
-          }
+        if (isVarTaintedInPattern(declNode.id, init, varName)) {
+          return true;
         }
       }
 
