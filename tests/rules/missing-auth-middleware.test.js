@@ -163,17 +163,45 @@ describe('Rule: auth/missing-auth-middleware', () => {
     expect(findings).toHaveLength(0);
   });
 
-  it('exempts webhook routes from missing auth middleware to prevent collision with webhook verification (Module 2)', () => {
+  it('ignores webhook endpoints to prevent collision with missing-webhook-verification (true negative)', () => {
     const code = `
       router.post('/api/payments/webhook', (req, res) => {
+        const event = req.body;
         res.json({ received: true });
       });
-      router.post('/stripe-webhook', (req, res) => {
-        res.json({ received: true });
+      app.post('/webhook', (req, res) => {
+        res.sendStatus(200);
+      });
+      app.post('/stripe-webhook', (req, res) => {
+        res.sendStatus(200);
       });
     `;
     const findings = analyzeCode(code, 'routes/payments.js');
     expect(findings).toHaveLength(0);
+  });
+
+  it('ignores routes in dedicated webhook router file (routes/webhook.js) (true negative)', () => {
+    const code = `
+      router.post('/', (req, res) => {
+        res.sendStatus(200);
+      });
+    `;
+    const findings = analyzeCode(code, 'routes/webhook.js');
+    expect(findings).toHaveLength(0);
+  });
+
+  it('flags sensitive non-webhook route while ignoring webhook endpoint in same router', () => {
+    const code = `
+      router.post('/checkout', (req, res) => {
+        res.json({ order: 123 });
+      });
+      router.post('/webhook', (req, res) => {
+        res.sendStatus(200);
+      });
+    `;
+    const findings = analyzeCode(code, 'routes/payments.js');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].codeSnippet).toContain('/checkout');
   });
 });
 

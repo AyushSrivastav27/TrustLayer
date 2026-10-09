@@ -196,7 +196,6 @@ describe('Rule: payment/payment-amount-tampering', () => {
     const findings = analyzeCode(code);
     expect(findings).toHaveLength(0);
   });
-
   it('flags deeply nested destructuring and aliased parameters (Module 2)', () => {
     const code = `
       router.post('/checkout', async (req, res) => {
@@ -213,6 +212,23 @@ describe('Rule: payment/payment-amount-tampering', () => {
     expect(findings[0].severity).toBe('critical');
   });
 
+  it('flags destructured parameter aliasing (const { amount: price } = req.body) (true positive)', () => {
+    const code = `
+      router.post('/charge', async (req, res) => {
+        const { amount: price } = req.body;
+        const charge = await stripe.charges.create({
+          amount: price,
+          currency: 'usd'
+        });
+        res.json(charge);
+      });
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ruleId).toBe('payment/payment-amount-tampering');
+    expect(findings[0].severity).toBe('critical');
+  });
+
   it('flags destructured handler parameters flowing into payment calls (Module 2)', () => {
     const code = `
       router.post('/checkout', async ({ body: { amount } }, res) => {
@@ -226,6 +242,104 @@ describe('Rule: payment/payment-amount-tampering', () => {
     const findings = analyzeCode(code);
     expect(findings).toHaveLength(1);
     expect(findings[0].severity).toBe('critical');
+  });
+
+  it('flags deep destructuring from req (const { body: { amount } } = req) (true positive)', () => {
+    const code = `
+      router.post('/checkout', async (req, res) => {
+        const { body: { amount } } = req;
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount,
+          currency: 'usd'
+        });
+        res.json(paymentIntent);
+      });
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ruleId).toBe('payment/payment-amount-tampering');
+  });
+
+  it('flags deep destructuring with aliasing (const { body: { amount: price } } = req) (true positive)', () => {
+    const code = `
+      router.post('/checkout', async (req, res) => {
+        const { body: { amount: price } } = req;
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: price,
+          currency: 'usd'
+        });
+        res.json(paymentIntent);
+      });
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ruleId).toBe('payment/payment-amount-tampering');
+  });
+
+  it('flags multi-step aliased destructuring (const { body } = req; const { amount } = body;)', () => {
+    const code = `
+      router.post('/checkout', async (req, res) => {
+        const { body } = req;
+        const { amount } = body;
+        const charge = await stripe.charges.create({
+          amount,
+          currency: 'usd'
+        });
+        res.json(charge);
+      });
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ruleId).toBe('payment/payment-amount-tampering');
+  });
+
+  it('flags variable aliasing (const body = req.body; const { amount } = body;)', () => {
+    const code = `
+      router.post('/checkout', async (req, res) => {
+        const body = req.body;
+        const { amount } = body;
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount,
+          currency: 'usd'
+        });
+        res.json(paymentIntent);
+      });
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ruleId).toBe('payment/payment-amount-tampering');
+  });
+
+  it('flags destructuring with default values (const { amount = 0 } = req.body)', () => {
+    const code = `
+      router.post('/checkout', async (req, res) => {
+        const { amount = 0 } = req.body;
+        const charge = await stripe.charges.create({
+          amount,
+          currency: 'usd'
+        });
+        res.json(charge);
+      });
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ruleId).toBe('payment/payment-amount-tampering');
+  });
+
+  it('flags TypeScript type-asserted request body (const { amount } = (req.body as any))', () => {
+    const code = `
+      router.post('/checkout', async (req, res) => {
+        const { amount } = (req.body as any);
+        const charge = await stripe.charges.create({
+          amount,
+          currency: 'usd'
+        });
+        res.json(charge);
+      });
+    `;
+    const findings = analyzeCode(code, 'routes/checkout.ts');
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ruleId).toBe('payment/payment-amount-tampering');
   });
 });
 

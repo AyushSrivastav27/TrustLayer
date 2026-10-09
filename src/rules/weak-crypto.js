@@ -3,14 +3,31 @@ const traverse = _traverse.default || _traverse;
 import { extractSnippet } from '../utils/ast-helpers.js';
 import { WEAK_HASH_ALGORITHMS } from '../utils/patterns.js';
 
-function isSecuritySensitiveRandomName(name) {
+const UI_NAME_REGEX = /^(?:el(?:ement)?|comp(?:onent)?|tab|btn|button|modal|dialog|toast|card|row|col(?:umn)?|grid|cell|widget|dom|tag|prefix|div|style|css|html|view|pane|slide|node|anim(?:ation)?|timer|timeout|interval|badge|item|label|icon|nav|dropdown|tooltip|picker|color|canvas|svg|slider|hidden|valid|middle|test|dummy|demo|avatar|heading)(?:id|key)?$/i;
+const UI_KEY_REGEX = /^(?:sort|menu|filter|table|prop|map|react|item|tab|column|row)key$/i;
+
+function hasUIStringContext(parent) {
+  if (!parent || !parent.node) return false;
+  let hasUI = false;
+  if (parent.traverse) {
+    parent.traverse({
+      StringLiteral(p) {
+        const val = p.node.value;
+        if (typeof val === 'string' && (/^#[a-zA-Z0-9_-]/i.test(val) || /^(?:btn|tab|el|card|ui|item|badge)-/i.test(val))) {
+          hasUI = true;
+          p.stop();
+        }
+      }
+    });
+  }
+  return hasUI;
+}
+
+function isSecuritySensitiveRandom(name, parent) {
   if (!name || typeof name !== 'string') return false;
 
-  // Benign UI, styling, DOM, or test identifiers
-  if (/(?:element|component|tab|card|row|col|node|dom|view|widget|item|color|bg|style|css|html|btn|button|test|dummy|demo|label|heading|avatar|badge|modal)id/i.test(name)) {
-    return false;
-  }
-  if (/^(?:element|component|tab|card|row|col|node|dom|view|widget|item|color|bg|style|css|html|btn|button|test)Id$/i.test(name)) {
+  // Benign UI identifier names or UI keys
+  if (UI_NAME_REGEX.test(name) || UI_KEY_REGEX.test(name)) {
     return false;
   }
 
@@ -19,8 +36,18 @@ function isSecuritySensitiveRandomName(name) {
     return false;
   }
 
-  // Explicit security-sensitive identifiers: token, secret, session, nonce, salt, password, csrf, bearer, apikey
-  if (/token|secret|session|nonce|salt|password|csrf|bearer|apikey|api_key/i.test(name)) {
+  // If the parent expression builds a UI selector / DOM ID (e.g. '#HOT-T' + Math.floor(...))
+  if (hasUIStringContext(parent)) {
+    return false;
+  }
+
+  // Security tokens, secrets, sessions, passwords, credentials
+  if (/token|secret|session|password|passwd|nonce|salt|credential|csrf|bearer|apikey|api_key/i.test(name)) {
+    return true;
+  }
+
+  // Cryptographic or API keys (excluding benign UI keys)
+  if (/(?:api|secret|access|private|encryption|crypto|auth|jwt|signing|master)[A-Z0-9_]*key/i.test(name) || name.toLowerCase() === 'key') {
     return true;
   }
 
@@ -29,8 +56,8 @@ function isSecuritySensitiveRandomName(name) {
     return true;
   }
 
-  // Cryptographic key variable names
-  if (/^(?:secretKey|apiKey|privateKey|publicKey|authKey|encryptionKey|sessionKey|signKey|masterKey|key)$/i.test(name)) {
+  // Explicitly security-qualified IDs (e.g. sessionId, tokenId, authId, resetId)
+  if (/(?:session|token|auth|reset|csrf|xsrf|jwt|secret|credential|api)[A-Z0-9_]*id/i.test(name) || /(?:session|token|auth|reset|csrf|xsrf|jwt|secret|credential|api)_id/i.test(name)) {
     return true;
   }
 
@@ -135,7 +162,7 @@ export const rule = {
               name = funcParent?.node?.id?.name || funcParent?.parentPath?.node?.id?.name || '';
             }
             
-            if (isSecuritySensitiveRandomName(name)) {
+            if (isSecuritySensitiveRandom(name, parent)) {
               findings.push({
                 ruleId: rule.id,
                 severity: rule.severity,

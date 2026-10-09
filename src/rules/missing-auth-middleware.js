@@ -53,8 +53,9 @@ function isAuthMiddlewareNode(node) {
 function isSensitiveRoute(routePath, filePath) {
   const normalizedFilePath = filePath.replace(/\\/g, '/');
 
-  // Dedicated webhook endpoints are handled by missing-webhook-verification (mutual exclusivity)
-  if (routePath && /(?:^|\/)(?:stripe-)?webhooks?(?:\/|$)/i.test(routePath)) {
+  // Webhook endpoints by design do not expect user session/JWT authentication.
+  // Dedicated webhook rules handle cryptographic signature verification.
+  if (routePath && (/\/webhook/i.test(routePath) || /(?:^|\/)(?:stripe-)?webhooks?(?:\/|$)/i.test(routePath) || /(?:^|\/)(payment-webhook|ipn|notify|callback)(\/|$)/i.test(routePath))) {
     return false;
   }
   if (/(?:^|\/)(?:routes?\/)?webhook(\.|\/|$)/i.test(normalizedFilePath)) {

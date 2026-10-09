@@ -75,6 +75,19 @@ describe('Rule: crypto/weak-crypto', () => {
       expect(findings[0].message).toContain("Insecure randomness (Math.random) used for security-sensitive variable 'secretKey'");
     });
 
+    it('should detect Math.random used for sessionId or apiKey', () => {
+      const code = `
+        const sessionId = Math.random().toString(36);
+        const apiKey = 'key_' + Math.random().toString(36);
+      `;
+      const context = createTestContext(code);
+
+      const findings = rule.analyze(context);
+      expect(findings.length).toBe(2);
+      expect(findings.some(f => f.message.includes('sessionId'))).toBe(true);
+      expect(findings.some(f => f.message.includes('apiKey'))).toBe(true);
+    });
+
     it('should detect obsolete DES cipher algorithm', () => {
       const code = `
         const cipher = crypto.createCipheriv('des-cbc', key, iv);
@@ -176,10 +189,25 @@ describe('Rule: crypto/weak-crypto', () => {
 
     it('should ignore Math.random for benign UI and DOM identifiers (Module 2 context check)', () => {
       const code = `
+        const id = '#HOT-T' + Math.floor(Math.random() * 1000);
         const elementId = '#HOT-T' + Math.floor(Math.random() * 1000);
         const tabId = 'tab-' + Math.random().toString(36);
         const cardId = 'card_' + Math.floor(Math.random() * 50);
         const randomColor = '#' + Math.floor(Math.random() * 16777215).toString(16);
+        const tabKey = 'tab-' + Math.random();
+        const badgeId = 'badge-' + Math.floor(Math.random() * 50);
+      `;
+      const context = createTestContext(code);
+
+      const findings = rule.analyze(context);
+      expect(findings.length).toBe(0);
+    });
+
+    it('should ignore variables containing id as a benign substring (e.g. slider, grid, widget)', () => {
+      const code = `
+        const slider = Math.random();
+        const grid = Math.random() * 10;
+        const widget = Math.random();
       `;
       const context = createTestContext(code);
 
