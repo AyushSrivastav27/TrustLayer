@@ -47,9 +47,14 @@ export default {
             if (innerPath.node.operator === 'typeof') {
               hasValidation = true;
             } else if (innerPath.node.operator === '!') {
-              if (t.isMemberExpression(innerPath.node.argument) && isReqAccess(innerPath.node.argument)) {
+              if (isReqAccess(innerPath.node.argument)) {
                 hasValidation = true;
               }
+            }
+          },
+          BinaryExpression(innerPath) {
+            if (innerPath.node.operator === 'instanceof') {
+              hasValidation = true;
             }
           },
           CallExpression(innerPath) {

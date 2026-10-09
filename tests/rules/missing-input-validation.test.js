@@ -51,6 +51,45 @@ describe('Missing Input Validation Rule', () => {
     expect(findings).toHaveLength(0);
   });
 
+  it('True Negative: ignores when validationResult is used', () => {
+    const code = `
+      app.post('/api/users', (req, res) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) return res.status(400).json(errors.array());
+        const userId = req.body.userId;
+        res.send('ok');
+      });
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(0);
+  });
+
+  it('True Negative: ignores when manual if guard check is used', () => {
+    const code = `
+      app.post('/api/users', (req, res) => {
+        if (!req.body.userId) {
+          return res.status(400).send('User ID required');
+        }
+        res.send('ok');
+      });
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(0);
+  });
+
+  it('True Negative: ignores when typeof check is used', () => {
+    const code = `
+      app.post('/api/users', (req, res) => {
+        if (typeof req.body.userId !== 'string') {
+          return res.status(400).send('Invalid user ID');
+        }
+        res.send('ok');
+      });
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(0);
+  });
+
   it('Edge Case: handles arrow functions without body correctly', () => {
     const code = `
       app.get('/api/health', (req, res) => res.send(req.query.status));
