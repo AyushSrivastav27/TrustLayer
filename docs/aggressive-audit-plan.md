@@ -143,17 +143,17 @@ Turn TrustLayer from a standalone CLI script into an installable npm package wit
 - `tests/engine/index.test.js` (New Test Suite)
 
 ### 📋 Action Items
-- [ ] **Create `src/index.js` Programmatic API:**
-  - Export `{ scan, discoverFiles, parseSource, enhanceReport, rules }`.
+- [x] **Create `src/index.js` Programmatic API:**
+  - Export `{ scan, scanFile, discoverFiles, parseSource, enhanceReport, loadRules, rules, generateMarkdownReport, generateJsonReport, toSarif }`.
   - Allow developers to run:
     ```javascript
     import { scan } from 'trustlayer';
     const report = await scan('./src', { rules: [...] });
     ```
-- [ ] **Package Distribution Metadata:**
+- [x] **Package Distribution Metadata:**
   - Configure `files` array in `package.json` to exclude tests, demo folders, and internal artifacts during `npm publish`.
   - Validate `"bin": { "trustlayer": "./src/cli.js" }` execution across Linux, macOS, and Windows.
-- [ ] **Windows Executable Compatibility:**
+- [x] **Windows Executable Compatibility:**
   - Verify Shebang `#!/usr/bin/env node` and CRLF/LF line ending compatibility.
 
 ---

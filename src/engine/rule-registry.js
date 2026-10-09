@@ -1,18 +1,20 @@
 import { glob } from 'glob';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 
 export const VALID_SEVERITIES = ['critical', 'high', 'medium', 'low'];
 export const VALID_CATEGORIES = ['secrets', 'injection', 'payment', 'auth'];
 
+const BUILTIN_RULES_DIR = fileURLToPath(new URL('../rules', import.meta.url));
+
 /**
  * Dynamically loads all rule definitions from src/rules/*.js
  *
- * @param {string} [rulesDir] - Path to rules folder (defaults to src/rules)
+ * @param {string} [rulesDir] - Path to rules folder (defaults to built-in src/rules)
  * @returns {Promise<import('../types/rule.js').Rule[]>}
  */
 export async function loadRules(rulesDir) {
-  const targetDir = rulesDir || path.resolve(process.cwd(), 'src/rules');
+  const targetDir = rulesDir || BUILTIN_RULES_DIR;
   const ruleFiles = await glob('*.js', { cwd: targetDir, absolute: true });
   
   const rules = [];
