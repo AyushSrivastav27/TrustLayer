@@ -15,7 +15,7 @@ export const rule = {
     const findings = [];
     if (!context.ast) return findings;
 
-    const SECRET_PATTERNS = [
+    const SECRET_NAME_PATTERNS = [
       /apikey/i,
       /secret/i,
       /token/i,
@@ -26,7 +26,7 @@ export const rule = {
     ];
 
     const isSecretIdentifier = (name) => {
-      return SECRET_PATTERNS.some(regex => regex.test(name));
+      return SECRET_NAME_PATTERNS.some(regex => regex.test(name));
     };
 
     const getMatchedKnownPattern = (value) => {

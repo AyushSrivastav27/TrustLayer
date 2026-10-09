@@ -13,6 +13,7 @@
  * @typedef {Object} Finding
  * @property {string} ruleId - Unique rule identifier (e.g., 'payment/client-controlled-amount')
  * @property {Severity} severity - Severity classification ('critical' | 'high' | 'medium' | 'low')
+ * @property {'secrets' | 'injection' | 'payment' | 'auth'} [category] - Security category classification
  * @property {string} file - Relative or absolute path to the vulnerable file
  * @property {number} line - Starting line number of the vulnerability (1-indexed)
  * @property {number} [endLine] - Optional ending line number (1-indexed)
@@ -51,5 +52,3 @@ export function createFinding(finding) {
     confidence: finding.confidence || 'high'
   };
 }
-
-export {};

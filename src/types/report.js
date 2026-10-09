@@ -55,5 +55,3 @@ export function calculateSeverityCounts(findings) {
   }
   return counts;
 }
-
-export {};
