@@ -169,10 +169,10 @@ Equip the hackathon team with high-impact demonstration assets, benchmark number
 - Pitch alignment with `Artifacts/trustlayer-pitch-deck.md`
 
 ### 📋 Action Items
-- [ ] **Benchmark Suite:**
+- [x] **Benchmark Suite:**
   - Measure scan throughput (Files/sec, Lines of Code/sec, Memory footprint in MB).
   - Compare speed against typical SAST scan times (Semgrep ~12s vs TrustLayer ~0.3s).
-- [ ] **Live Pitch Rehearsal Sequence:**
+- [x] **Live Pitch Rehearsal Sequence:**
   - Step 1: Instant CLI scan on vulnerable demo (`demo/`).
   - Step 2: Show automated offline attack chain correlation.
   - Step 3: Run `npm run demo:compare` showing 8 vulnerabilities blocked in CI gate, 0 in remediated code.
