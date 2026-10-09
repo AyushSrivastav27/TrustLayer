@@ -142,6 +142,15 @@ describe('Engine: ast-parser (parseSource)', () => {
       expect(error.message).toContain('Binary file detected');
     });
 
+    it('detects and safely rejects binary files masquerading as JS (Module 3 Self-Defense)', () => {
+      const binaryData = 'GIF89a\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00!\xf9\x04\x01\x00\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;';
+      const { ast, error } = parseSource(binaryData, 'fake.js');
+
+      expect(ast).toBeNull();
+      expect(error).toBeInstanceOf(Error);
+      expect(error.message).toContain('Binary file detected');
+    });
+
     it('rejects various non-string types with a TypeError without throwing', () => {
       const invalidInputs = [123, true, {}, [], () => {}];
 

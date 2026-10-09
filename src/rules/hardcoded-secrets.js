@@ -55,7 +55,7 @@ export const rule = {
     };
 
     const evaluateSecret = (node, value, targetName, targetType) => {
-      if (typeof value !== 'string' || value.length < 5) return;
+      if (typeof value !== 'string' || value.length < 5 || value.length > 2048) return;
 
       const matchedPattern = getMatchedKnownPattern(value);
       const isSecretTarget = targetName && isSecretIdentifier(targetName);

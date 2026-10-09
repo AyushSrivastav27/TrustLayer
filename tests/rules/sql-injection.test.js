@@ -85,4 +85,94 @@ describe('SQL Injection Rule', () => {
     expect(findings[0].severity).toBe('critical');
     expect(findings[0].message).toContain('string concatenation');
   });
+
+  it('True Positive: detects template literal in knex.raw and prisma.$queryRawUnsafe (Module 2)', () => {
+    const code = `
+      const category = req.query.category;
+      knex.raw(\`SELECT * FROM products WHERE category = \${category}\`);
+      prisma.$queryRawUnsafe(\`SELECT * FROM users WHERE email = \${email}\`);
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(2);
+    expect(findings[0].ruleId).toBe('injection/sql-injection');
+    expect(findings[1].ruleId).toBe('injection/sql-injection');
+  });
+
+  it('True Negative: ignores safe parameterized Prisma tagged template queries (Module 2)', () => {
+    const code = `
+      const userId = req.params.id;
+      const user = await prisma.$queryRaw\`SELECT * FROM users WHERE id = \${userId}\`;
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(0);
+  });
+
+  it('True Positive: detects template literal with expressions in prisma.$queryRawUnsafe', () => {
+    const code = `
+      const id = req.params.id;
+      await prisma.$queryRawUnsafe(\`SELECT * FROM users WHERE id = \${id}\`);
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ruleId).toBe('injection/sql-injection');
+    expect(findings[0].severity).toBe('critical');
+    expect(findings[0].message).toContain('template literal');
+  });
+
+  it('True Positive: detects string concatenation in knex.raw', () => {
+    const code = `
+      const filter = req.query.filter;
+      await knex.raw('SELECT * FROM products WHERE name = ' + filter);
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ruleId).toBe('injection/sql-injection');
+    expect(findings[0].severity).toBe('critical');
+  });
+
+  it('True Positive: detects template literal in knex.raw', () => {
+    const code = `
+      const id = req.body.id;
+      await knex.raw(\`SELECT * FROM orders WHERE id = \${id}\`);
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ruleId).toBe('injection/sql-injection');
+  });
+
+  it('True Positive: detects aliased query variable passed to db.query', () => {
+    const code = `
+      const sql = \`SELECT * FROM users WHERE email = \${req.body.email}\`;
+      db.query(sql);
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ruleId).toBe('injection/sql-injection');
+  });
+
+  it('True Negative: ignores Prisma parameterized tagged template (prisma.$queryRaw)', () => {
+    const code = `
+      const userId = req.body.userId;
+      await prisma.$queryRaw\`SELECT * FROM users WHERE id = \${userId}\`;
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(0);
+  });
+
+  it('True Negative: ignores parameterized knex.raw with binding array', () => {
+    const code = `
+      const id = req.params.id;
+      await knex.raw('SELECT * FROM users WHERE id = ?', [id]);
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(0);
+  });
+
+  it('True Negative: ignores static literal string in prisma.$queryRawUnsafe', () => {
+    const code = `
+      await prisma.$queryRawUnsafe('SELECT * FROM users');
+    `;
+    const findings = analyzeCode(code);
+    expect(findings).toHaveLength(0);
+  });
 });

@@ -1,8 +1,8 @@
 import _traverse from '@babel/traverse';
 const traverse = _traverse.default || _traverse;
 import * as t from '@babel/types';
-import { isReqAccess, isReqPropertyAccess, extractSnippet } from '../utils/ast-helpers.js';
-import { AMOUNT_KEYS, PAYMENT_SINKS } from '../utils/patterns.js';
+import { isReqAccess, isReqPropertyAccess, extractSnippet, unwrapNode } from '../utils/ast-helpers.js';
+import { AMOUNT_KEYS, PAYMENT_SINKS, HTTP_SOURCES } from '../utils/patterns.js';
 
 /**
  * Checks if a CallExpression matches known payment SDK methods:
@@ -69,6 +69,53 @@ function isPaymentSinkCall(node) {
 }
 
 /**
+ * Recursively checks if a target variable was extracted from client request inputs
+ * via standard, aliased, or nested destructuring (e.g. { body: { amount: customPrice } } = req).
+ *
+ * @param {object} pattern - Babel ObjectPattern node
+ * @param {object} init - Babel expression being destructured
+ * @param {string} targetVar - Name of variable being checked
+ * @returns {boolean}
+ */
+function isVarTaintedInPattern(pattern, init, targetVar) {
+  if (!pattern || !t.isObjectPattern(pattern)) return false;
+
+  const isReqRoot = t.isIdentifier(init) && (init.name === 'req' || init.name === 'request');
+  const isReqMember = isReqAccess(init);
+
+  if (!isReqRoot && !isReqMember) return false;
+
+  function checkPattern(pat, inHttpSource) {
+    if (!t.isObjectPattern(pat)) return false;
+
+    for (const prop of pat.properties) {
+      if (!t.isObjectProperty(prop)) continue;
+
+      const keyName = t.isIdentifier(prop.key) ? prop.key.name : (t.isStringLiteral(prop.key) ? prop.key.value : null);
+
+      if (t.isObjectPattern(prop.value)) {
+        const nextInHttpSource = inHttpSource || (isReqRoot && (keyName === 'body' || keyName === 'query' || keyName === 'params'));
+        if (checkPattern(prop.value, nextInHttpSource)) {
+          return true;
+        }
+      } else if (t.isIdentifier(prop.value)) {
+        const valName = prop.value.name;
+        if (valName === targetVar) {
+          if (inHttpSource || isReqMember) {
+            if (AMOUNT_KEYS.includes(keyName) || AMOUNT_KEYS.includes(valName)) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  return checkPattern(pattern, isReqMember);
+}
+
+/**
  * Checks if a given AST expression is tainted by client-controlled request input.
  * Recursively resolves variables within the local scope.
  *
@@ -77,73 +124,203 @@ function isPaymentSinkCall(node) {
  * @param {Set<string>} visitedBindings - Recursion guard for variable tracking
  * @returns {boolean}
  */
+/**
+ * Recursively inspects an ObjectPattern/ArrayPattern to find how targetVarName is bound.
+ * Returns an array of property keys from root init down to the variable, or null if not found.
+ */
+function getDestructurePath(patternNode, targetVarName, currentPath = []) {
+  if (!patternNode) return null;
+
+  if (t.isObjectPattern(patternNode)) {
+    for (const prop of patternNode.properties) {
+      if (t.isObjectProperty(prop)) {
+        const keyName = t.isIdentifier(prop.key)
+          ? prop.key.name
+          : (t.isStringLiteral(prop.key) ? prop.key.value : null);
+
+        let valueNode = prop.value;
+        // Unwrap default value: { amount = 0 } or { amount: price = 0 }
+        if (t.isAssignmentPattern(valueNode)) {
+          valueNode = valueNode.left;
+        }
+
+        if (t.isIdentifier(valueNode)) {
+          if (valueNode.name === targetVarName) {
+            return [...currentPath, keyName || targetVarName];
+          }
+        } else if (t.isObjectPattern(valueNode) || t.isArrayPattern(valueNode)) {
+          const nested = getDestructurePath(valueNode, targetVarName, [...currentPath, keyName || '']);
+          if (nested) return nested;
+        }
+      }
+    }
+  }
+
+  if (t.isArrayPattern(patternNode)) {
+    for (const elem of patternNode.elements) {
+      let elemNode = elem;
+      if (t.isAssignmentPattern(elemNode)) {
+        elemNode = elemNode.left;
+      }
+      if (t.isIdentifier(elemNode)) {
+        if (elemNode.name === targetVarName) {
+          return [...currentPath, targetVarName];
+        }
+      } else if (t.isObjectPattern(elemNode) || t.isArrayPattern(elemNode)) {
+        const nested = getDestructurePath(elemNode, targetVarName, [...currentPath]);
+        if (nested) return nested;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Checks whether an AST node resolves to an HTTP request source (req.body, req.query, etc.).
+ */
+function isHttpSource(node, scope, visited = new Set()) {
+  const unwrapped = unwrapNode(node);
+  if (!unwrapped) return false;
+
+  if (isReqAccess(unwrapped)) return true;
+
+  if (t.isIdentifier(unwrapped) && scope) {
+    if (visited.has(unwrapped.name)) return false;
+    visited.add(unwrapped.name);
+
+    const binding = scope.getBinding(unwrapped.name);
+    if (!binding || !binding.path) return false;
+
+    if (binding.path.isVariableDeclarator()) {
+      const declNode = binding.path.node;
+      const init = unwrapNode(declNode.init);
+
+      // Direct assignment: const body = req.body;
+      if (init && isHttpSource(init, binding.scope, visited)) {
+        return true;
+      }
+
+      // Destructured: const { body } = req;
+      if (init && t.isIdentifier(init) && init.name === 'req' && t.isObjectPattern(declNode.id)) {
+        const destPath = getDestructurePath(declNode.id, unwrapped.name);
+        if (destPath && destPath.length > 0 && HTTP_SOURCES.includes(destPath[0])) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
 function isTaintedByClient(node, scope, visitedBindings = new Set()) {
-  if (!node) return false;
+  const unwrapped = unwrapNode(node);
+  if (!unwrapped) return false;
 
   // Direct access: req.body, req.query, req.params, req.body.amount, etc.
-  if (isReqAccess(node) || isReqPropertyAccess(node, AMOUNT_KEYS)) {
+  if (isReqAccess(unwrapped) || isReqPropertyAccess(unwrapped, AMOUNT_KEYS)) {
     return true;
   }
 
   // Bracket access: req.body['amount'] or req['body']['amount']
-  if (t.isMemberExpression(node) && node.computed && t.isStringLiteral(node.property)) {
-    if (isReqAccess(node.object) && AMOUNT_KEYS.includes(node.property.value)) {
+  if (t.isMemberExpression(unwrapped) && unwrapped.computed && t.isStringLiteral(unwrapped.property)) {
+    if (isReqAccess(unwrapped.object) && AMOUNT_KEYS.includes(unwrapped.property.value)) {
       return true;
     }
-    if (isReqAccess(node)) {
+    if (isReqAccess(unwrapped)) {
+      return true;
+    }
+  }
+
+  // Member expression on an HTTP source variable: body.amount, userReq.body.amount
+  if (t.isMemberExpression(unwrapped)) {
+    const propName = t.isIdentifier(unwrapped.property)
+      ? unwrapped.property.name
+      : (t.isStringLiteral(unwrapped.property) ? unwrapped.property.value : null);
+    if (propName && AMOUNT_KEYS.includes(propName) && isHttpSource(unwrapped.object, scope)) {
       return true;
     }
   }
 
   // Binary expression: req.body.amount * 100, amount + 10, etc.
-  if (t.isBinaryExpression(node)) {
+  if (t.isBinaryExpression(unwrapped)) {
     return (
-      isTaintedByClient(node.left, scope, visitedBindings) ||
-      isTaintedByClient(node.right, scope, visitedBindings)
+      isTaintedByClient(unwrapped.left, scope, visitedBindings) ||
+      isTaintedByClient(unwrapped.right, scope, visitedBindings)
     );
   }
 
   // Unary expression: +req.body.amount, -amount
-  if (t.isUnaryExpression(node)) {
-    return isTaintedByClient(node.argument, scope, visitedBindings);
+  if (t.isUnaryExpression(unwrapped)) {
+    return isTaintedByClient(unwrapped.argument, scope, visitedBindings);
   }
 
   // Type casts / wrapper calls: Number(req.body.amount), parseInt(amount), Math.round(amount)
-  if (t.isCallExpression(node)) {
-    return node.arguments.some(arg => isTaintedByClient(arg, scope, visitedBindings));
+  if (t.isCallExpression(unwrapped)) {
+    return unwrapped.arguments.some(arg => isTaintedByClient(arg, scope, visitedBindings));
   }
 
   // Identifiers: resolve scope binding
-  if (t.isIdentifier(node) && scope) {
-    const varName = node.name;
+  if (t.isIdentifier(unwrapped) && scope) {
+    const varName = unwrapped.name;
     if (visitedBindings.has(varName)) return false;
     visitedBindings.add(varName);
 
     const binding = scope.getBinding(varName);
     if (!binding || !binding.path) return false;
 
-    // Destructuring: const { amount } = req.body; or const { price: userPrice } = req.body;
+    // Check function parameter destructuring: e.g. ({ body: { amount } }, res)
+    if (binding.kind === 'param' && binding.path) {
+      const paramNode = binding.path.node;
+      if (t.isObjectPattern(paramNode)) {
+        const destPath = getDestructurePath(paramNode, varName);
+        if (destPath && destPath.length > 0) {
+          const leafKey = destPath[destPath.length - 1];
+          if (AMOUNT_KEYS.includes(leafKey) || AMOUNT_KEYS.includes(varName)) {
+            return true;
+          }
+        }
+      }
+    }
+
+    // Destructuring: const { amount } = req.body; const { amount: price } = req.body;
+    // Deep destructuring: const { body: { amount } } = req;
     if (binding.path.isVariableDeclarator()) {
       const declNode = binding.path.node;
-      const init = declNode.init;
+      const init = unwrapNode(declNode.init);
 
-      if (t.isObjectPattern(declNode.id)) {
-        // Check if init is an HTTP source (e.g. req.body)
-        if (isReqAccess(init)) {
-          // If the variable was destructured from req.body/req.query with an amount key
-          for (const prop of declNode.id.properties) {
-            if (t.isObjectProperty(prop)) {
-              const keyName = t.isIdentifier(prop.key) ? prop.key.name : (t.isStringLiteral(prop.key) ? prop.key.value : null);
-              const valName = t.isIdentifier(prop.value) ? prop.value.name : null;
-              if (valName === varName && (AMOUNT_KEYS.includes(keyName) || AMOUNT_KEYS.includes(varName))) {
+      if (declNode.id && (t.isObjectPattern(declNode.id) || t.isArrayPattern(declNode.id))) {
+        const destPath = getDestructurePath(declNode.id, varName);
+        if (destPath && destPath.length > 0) {
+          const leafKey = destPath[destPath.length - 1];
+
+          // 1. Deep destructuring directly from req: const { body: { amount } } = req;
+          if (init && t.isIdentifier(init) && init.name === 'req') {
+            if (HTTP_SOURCES.includes(destPath[0])) {
+              if (AMOUNT_KEYS.includes(leafKey) || AMOUNT_KEYS.includes(varName)) {
                 return true;
               }
+            }
+          }
+
+          // 2. Destructured from an HTTP source (req.body, req.query, or variable resolving to req.body)
+          if (init && isHttpSource(init, binding.scope)) {
+            if (AMOUNT_KEYS.includes(leafKey) || AMOUNT_KEYS.includes(varName) || destPath.some(k => AMOUNT_KEYS.includes(k))) {
+              return true;
+            }
+          }
+
+          // 3. Destructured from tainted expression: const { amount } = await parseBody(...)
+          if (init && isTaintedByClient(init, binding.scope, visitedBindings)) {
+            if (AMOUNT_KEYS.includes(leafKey) || AMOUNT_KEYS.includes(varName)) {
+              return true;
             }
           }
         }
       }
 
-      // Direct assignment: const amount = req.body.amount;
+      // Direct assignment: const amount = req.body.amount; const price = amount;
       if (init) {
         if (isTaintedByClient(init, binding.scope, visitedBindings)) {
           return true;

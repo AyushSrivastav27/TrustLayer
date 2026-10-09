@@ -201,8 +201,12 @@ export async function scan(targetPath, options = {}) {
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    const findings = await scanFile(file, rules, null, options);
-    allFindings.push(...findings);
+    try {
+      const findings = await scanFile(file, rules, null, options);
+      allFindings.push(...findings);
+    } catch (err) {
+      console.warn(`[TrustLayer] Error scanning "${file}":`, err.message);
+    }
 
     if (typeof options.onProgress === 'function') {
       options.onProgress({

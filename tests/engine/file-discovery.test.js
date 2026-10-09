@@ -209,6 +209,21 @@ describe('Engine: file-discovery (discoverFiles)', () => {
       expect(discoveredLargeLimit).toHaveLength(1);
     });
 
+    it('filters out files exceeding maxFileSize ceiling (Module 3 Self-Defense)', async () => {
+      const sizeDir = path.join(tempDir, 'size-test-project');
+      await fs.mkdir(sizeDir, { recursive: true });
+      await fs.writeFile(path.join(sizeDir, 'small.js'), 'console.log("ok");');
+      // 500 bytes file
+      await fs.writeFile(path.join(sizeDir, 'large.js'), 'a'.repeat(500));
+
+      // Limit to 200 bytes
+      const files = await discoverFiles(sizeDir, { maxFileSize: 200 });
+      const relativePaths = files.map(f => path.relative(sizeDir, f).replace(/\\/g, '/'));
+
+      expect(relativePaths).toContain('small.js');
+      expect(relativePaths).not.toContain('large.js');
+    });
+
     it('prevents infinite recursion on circular directory symlinks by defaulting to follow: false', async () => {
       const symlinkDir = path.join(tempDir, 'symlink-test');
       await fs.mkdir(symlinkDir, { recursive: true });

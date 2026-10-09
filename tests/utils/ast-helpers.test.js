@@ -4,7 +4,7 @@ import * as astHelpers from '../../src/utils/ast-helpers.js';
 import * as patterns from '../../src/utils/patterns.js';
 
 function parseExpr(code) {
-  const ast = babelParser.parse(code, { sourceType: 'module' });
+  const ast = babelParser.parse(code, { sourceType: 'module', plugins: ['typescript', 'jsx'] });
   // ast.program.body[0] is ExpressionStatement
   return ast.program.body[0].expression;
 }
@@ -126,6 +126,27 @@ describe('AST Helpers - isReqAccess', () => {
   it('supports custom sources list', () => {
     expect(astHelpers.isReqAccess(parseExpr('req.session'), ['session'])).toBe(true);
     expect(astHelpers.isReqAccess(parseExpr('req.body'), ['session'])).toBe(false);
+  });
+
+  it('unwraps TypeScript type assertions in isReqAccess', () => {
+    expect(astHelpers.isReqAccess(parseExpr('(req.body as any)'))).toBe(true);
+    expect(astHelpers.isReqAccess(parseExpr('(req.body as any).amount'))).toBe(true);
+    expect(astHelpers.isReqAccess(parseExpr('((req.query as unknown) as any)'))).toBe(true);
+  });
+});
+
+describe('AST Helpers - unwrapNode', () => {
+  it('unwraps TypeScript as expressions, non-null assertions, and parentheses', () => {
+    const tsAsNode = parseExpr('(x as string)');
+    expect(astHelpers.unwrapNode(tsAsNode).name).toBe('x');
+
+    const nonNullNode = parseExpr('x!');
+    expect(astHelpers.unwrapNode(nonNullNode).name).toBe('x');
+
+    const parensNode = parseExpr('((x))');
+    expect(astHelpers.unwrapNode(parensNode).name).toBe('x');
+
+    expect(astHelpers.unwrapNode(null)).toBeNull();
   });
 });
 
