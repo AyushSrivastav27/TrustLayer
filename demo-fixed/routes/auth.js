@@ -2,8 +2,12 @@ import express from 'express';
 import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { db } from '../../demo/db/setup.js';
+import { authLimiter } from '../middleware/rate-limiter.js';
 
 const router = express.Router();
+
+// SECURE: Rate limit authentication attempts to prevent brute force and credential stuffing
+router.use(authLimiter);
 
 // SECURE: Read credentials exclusively from environment variables
 const jwtSecret = process.env.JWT_SECRET || '';
