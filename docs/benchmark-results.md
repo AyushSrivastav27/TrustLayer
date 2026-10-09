@@ -1,17 +1,17 @@
 # ⚡ TrustLayer — Performance & Throughput Benchmark Report
 
 > **System Environment:** Node.js v22.22.1 | Platform: linux (x64)  
-> **Date:** 2026-10-09T12:42:57.986Z  
+> **Date:** 2026-10-09T16:03:11.727Z  
 
 ## 📊 Throughput Metrics
 
 | Target Codebase | Files | Lines of Code | Median Latency | Throughput (LOC/s) | Issues Detected |
 |---|---|---|---|---|---|
-| **Vulnerable Demo (demo/)** | 8 | 516 | **46.12 ms** | 11,188 loc/s | 8 |
-| **Hardened Demo (demo-fixed/)** | 7 | 468 | **33.46 ms** | 13,986 loc/s | 0 |
-| **TrustLayer Core (src/)** | 21 | 3,494 | **152.66 ms** | 22,887 loc/s | 0 |
-| **Synthetic API (50 files)** | 50 | 502 | **113.51 ms** | 4,422 loc/s | 86 |
-| **Synthetic API (100 files)** | 100 | 1,000 | **143.21 ms** | 6,983 loc/s | 175 |
+| **Vulnerable Demo (demo/)** | 8 | 516 | **49.87 ms** | 10,347 loc/s | 12 |
+| **Hardened Demo (demo-fixed/)** | 8 | 503 | **100.34 ms** | 5,013 loc/s | 0 |
+| **TrustLayer Core (src/)** | 23 | 4,544 | **265.05 ms** | 17,144 loc/s | 0 |
+| **Synthetic API (50 files)** | 50 | 502 | **102.38 ms** | 4,903 loc/s | 98 |
+| **Synthetic API (100 files)** | 100 | 1,000 | **225.88 ms** | 4,427 loc/s | 200 |
 
 ## 🥊 Competitive Performance Comparison (100-File Standard Scan)
 

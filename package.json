@@ -23,7 +23,8 @@
     "scan:demo": "node src/cli.js scan ./demo",
     "scan:fixed": "node src/cli.js scan ./demo-fixed",
     "demo:compare": "node scripts/demo-compare.js",
-    "benchmark": "node scripts/benchmark.js"
+    "benchmark": "node scripts/benchmark.js",
+    "hooks:install": "node scripts/install-hooks.js"
   },
   "keywords": [
     "security",
@@ -37,11 +38,11 @@
   "license": "ISC",
   "dependencies": {
     "@babel/parser": "^7.29.9",
-    "@babel/traverse": "^8.0.6",
-    "@babel/types": "^8.0.6",
+    "@babel/traverse": "^8.0.7",
+    "@babel/types": "^8.0.7",
     "chalk": "^6.0.1",
     "commander": "^15.0.0",
-    "dotenv": "^18.0.5",
+    "dotenv": "^18.0.7",
     "glob": "^13.0.6",
     "ora": "^9.4.1"
   },

@@ -101,20 +101,22 @@ All 5 core layers and specialized rule categories are **fully implemented, integ
 | Subsystem / Layer | Component / Files | Status | Test Coverage |
 |---|---|:---:|:---:|
 | **Data Contracts** | `src/types/rule.js`, `src/types/finding.js`, `src/types/report.js` | 🟢 Completed | 7 / 7 Tests Passing (`finding.test.js`) |
-| **AST & Pattern Helpers** | `src/utils/ast-helpers.js`, `src/utils/patterns.js` | 🟢 Completed | 22 / 22 Tests Passing |
-| **Babel AST Parser** | `src/engine/ast-parser.js` | 🟢 Completed | 10 / 10 Tests Passing |
-| **File Discovery** | `src/engine/file-discovery.js` | 🟢 Completed | 11 / 11 Tests Passing |
+| **AST & Pattern Helpers** | `src/utils/ast-helpers.js`, `src/utils/patterns.js` | 🟢 Completed | 34 / 34 Tests Passing |
+| **Babel AST Parser** | `src/engine/ast-parser.js` | 🟢 Completed | 14 / 14 Tests Passing |
+| **File Discovery** | `src/engine/file-discovery.js` | 🟢 Completed | 17 / 17 Tests Passing |
 | **Rule Auto-Registry** | `src/engine/rule-registry.js` | 🟢 Completed | 7 / 7 Tests Passing |
-| **Scanner Orchestrator** | `src/engine/scanner.js` | 🟢 Completed | 12 / 12 Tests Passing |
-| **CLI Interface** | `src/cli.js` (Commander.js, ANSI Banner, exit codes) | 🟢 Completed | 26 / 26 Tests Passing (`cli.test.js`) |
-| **Payment Security Rules** | `payment-amount-tampering.js`, `missing-webhook-verification.js` | 🟢 Completed | 22 / 22 Tests Passing |
-| **Authentication Rules** | `src/rules/missing-auth-middleware.js` | 🟢 Completed | 12 / 12 Tests Passing |
-| **Secrets & Crypto Rules** | `src/rules/hardcoded-secrets.js`, `src/rules/weak-crypto.js` | 🟢 Completed | 32 / 32 Tests Passing |
-| **Injection Rules** | `src/rules/sql-injection.js`, `missing-input-validation.js` | 🟢 Completed | 11 / 11 Tests Passing |
-| **Reporting & SARIF** | `src/reporters/markdown-reporter.js`, `src/reporters/json-reporter.js` | 🟢 Completed | 21 / 21 Tests Passing |
-| **AI & Attack Chains** | `src/ai/enhancer.js` (Offline Heuristics + Gemini 3.8 Flash) | 🟢 Completed | 13 / 13 Tests Passing |
-| **Vulnerable Demo App** | `demo/server.js`, `demo/routes/*`, `demo/db/*` | 🟢 Completed | 8 Canonical Flaws Verified |
+| **Scanner Orchestrator** | `src/engine/scanner.js` | 🟢 Completed | 18 / 18 Tests Passing |
+| **CLI & Programmatic API** | `src/cli.js`, `src/index.js` (Commander.js, exit codes) | 🟢 Completed | 43 / 43 Tests Passing |
+| **Payment Security Rules** | `payment-amount-tampering.js`, `missing-webhook-verification.js` | 🟢 Completed | 31 / 31 Tests Passing |
+| **Authentication & IDOR Rules** | `missing-auth-middleware.js`, `idor-access-control.js`, `missing-rate-limiting.js` | 🟢 Completed | 35 / 35 Tests Passing |
+| **Secrets & Crypto Rules** | `src/rules/hardcoded-secrets.js`, `src/rules/weak-crypto.js` | 🟢 Completed | 35 / 35 Tests Passing |
+| **Injection Rules** | `src/rules/sql-injection.js`, `missing-input-validation.js` | 🟢 Completed | 23 / 23 Tests Passing |
+| **Reporters & SARIF** | `src/reporters/markdown-reporter.js`, `src/reporters/json-reporter.js` | 🟢 Completed | 21 / 21 Tests Passing |
+| **AI & Attack Chains** | `src/ai/enhancer.js` (Offline Heuristics + Gemini / Claude / OpenAI) | 🟢 Completed | 13 / 13 Tests Passing |
+| **Vulnerable Demo App** | `demo/server.js`, `demo/routes/*`, `demo/db/*` | 🟢 Completed | 12 Canonical Flaws Detected |
 | **Hardened Reference App** | `demo-fixed/*` (Verified Remediation Counterpart) | 🟢 Completed | 100% Clean Scan (0 Flaws) |
+| **CI/CD & GitHub Actions** | `.github/workflows/ci.yml`, `security-scan.yml`, `action.yml` | 🟢 Completed | Node 20/22 Matrix + SARIF Upload |
+| **Git Pre-commit Hook** | `scripts/pre-commit.sh`, `scripts/install-hooks.js` | 🟢 Completed | Automatic commit staging guard |
 | **E2E Demo Verification** | `tests/reporters/demo-verification.test.js` | 🟢 Completed | 19 / 19 Tests Passing |
 
 ---
@@ -219,13 +221,15 @@ TrustLayer operates with a **Deterministic Detection Core**:
 
 ## 🛡️ Security Rules Portfolio
 
-TrustLayer ships with 7 deterministic AST rules engineered specifically for Node.js/Express e-commerce architectures:
+TrustLayer ships with 9 deterministic AST rules engineered specifically for Node.js/Express e-commerce architectures:
 
 | Rule ID | Category | Severity | Detection Trigger & Mechanism |
 |---|---|:---:|---|
 | [`payment/payment-amount-tampering`](file:///home/jay/Documents/TrustLayer/src/rules/payment-amount-tampering.js) | `payment` | **Critical** | Traces client input (`req.body.amount`, `req.body.price`) flowing directly into payment SDK calls (`stripe.charges.create`, `stripe.paymentIntents.create`, `razorpay.orders.create`) without server-side catalog price lookup. |
 | [`payment/missing-webhook-verification`](file:///home/jay/Documents/TrustLayer/src/rules/missing-webhook-verification.js) | `payment` | **High** | Flags payment webhook handlers (`/webhook`, `/stripe-webhook`) that lack cryptographic HMAC signature verification (`stripe.webhooks.constructEvent` or `crypto.timingSafeEqual`). |
 | [`auth/missing-auth-middleware`](file:///home/jay/Documents/TrustLayer/src/rules/missing-auth-middleware.js) | `auth` | **High** | Inspects Express routing chains on sensitive routes (`/api/orders`, `/api/admin`, `/api/users`) to detect endpoints omitting authentication middleware guards. |
+| [`auth/idor-access-control`](file:///home/jay/Documents/TrustLayer/src/rules/idor-access-control.js) | `auth` | **High** | Flags database operations querying resources by ID parameter (`req.params.id`) without verifying ownership or scoping queries to the authenticated user ID (`user_id = req.user.id`). |
+| [`auth/missing-rate-limiting`](file:///home/jay/Documents/TrustLayer/src/rules/missing-rate-limiting.js) | `auth` | **Medium** | Identifies brute-force and financial abuse-prone routes (`/login`, `/register`, `/checkout`, `/forgot-password`) omitting rate-limiting middleware (`express-rate-limit`, `rateLimiter`). |
 | [`secrets/hardcoded-secrets`](file:///home/jay/Documents/TrustLayer/src/rules/hardcoded-secrets.js) | `secrets` | **Critical** | Scans variable declarations and object configs for live API keys (Stripe `sk_live_`, Razorpay `rzp_live_`, AWS `AKIA...`, JWT secrets) using exact prefix matching and Shannon entropy analysis. |
 | [`secrets/weak-crypto`](file:///home/jay/Documents/TrustLayer/src/rules/weak-crypto.js) | `secrets` | **High** | Flags obsolete cryptographic hashing (`md5`, `sha1`), weak legacy ciphers (`des`, `rc4`), and `Math.random()` used in security-sensitive token/session generation contexts. |
 | [`injection/sql-injection`](file:///home/jay/Documents/TrustLayer/src/rules/sql-injection.js) | `injection` | **Critical** | Detects unparameterized SQL queries built via template literals or string concatenation flowing directly into database sinks (`db.query`, `db.run`, `pool.query`, `knex.raw`). |
@@ -259,36 +263,77 @@ npm run demo:compare
 The repository uses **Vitest** for fast unit and integration testing.
 
 ```bash
-# Run all 225 tests across all 18 test suites
+# Run all 317 tests across all 22 test suites
 npm test
 
 # Run tests in watch mode during development
 npm run test:watch
 ```
 
-Current test status: **225 passing tests (100%)** across 18 test files:
-- **Core Engine & CLI (66 tests)**:
-  - `tests/cli.test.js` (26 tests)
-  - `tests/engine/scanner.test.js` (12 tests)
-  - `tests/engine/file-discovery.test.js` (11 tests)
-  - `tests/engine/ast-parser.test.js` (10 tests)
+Current test status: **317 passing tests (100%)** across 22 test files:
+- **Core Engine & CLI (99 tests)**:
+  - `tests/cli.test.js` (34 tests)
+  - `tests/engine/scanner.test.js` (18 tests)
+  - `tests/engine/file-discovery.test.js` (17 tests)
+  - `tests/engine/ast-parser.test.js` (14 tests)
+  - `tests/engine/index.test.js` (9 tests)
   - `tests/engine/rule-registry.test.js` (7 tests)
-- **AST Utilities & Contracts (29 tests)**:
-  - `tests/utils/ast-helpers.test.js` (22 tests)
+- **AST Utilities & Contracts (41 tests)**:
+  - `tests/utils/ast-helpers.test.js` (24 tests)
+  - `tests/utils/patterns.test.js` (10 tests)
   - `tests/engine/finding.test.js` (7 tests)
-- **Security Rules (79 tests)**:
+- **Security Rules (124 tests)**:
+  - `tests/rules/payment-amount-tampering.test.js` (22 tests)
+  - `tests/rules/weak-crypto.test.js` (19 tests)
   - `tests/rules/hardcoded-secrets.test.js` (16 tests)
-  - `tests/rules/weak-crypto.test.js` (16 tests)
-  - `tests/rules/payment-amount-tampering.test.js` (13 tests)
-  - `tests/rules/missing-auth-middleware.test.js` (12 tests)
+  - `tests/rules/sql-injection.test.js` (16 tests)
+  - `tests/rules/missing-auth-middleware.test.js` (15 tests)
+  - `tests/rules/idor-access-control.test.js` (10 tests)
+  - `tests/rules/missing-rate-limiting.test.js` (10 tests)
   - `tests/rules/missing-webhook-verification.test.js` (9 tests)
-  - `tests/rules/sql-injection.test.js` (7 tests)
-  - `tests/rules/missing-input-validation.test.js` (4 tests)
-- **Reporters, AI & E2E Verification (51 tests)**:
+  - `tests/rules/missing-input-validation.test.js` (7 tests)
+- **Reporters, AI & E2E Verification (53 tests)**:
   - `tests/reporters/demo-verification.test.js` (19 tests)
   - `tests/reporters/enhancer.test.js` (13 tests)
   - `tests/reporters/json-reporter.test.js` (12 tests)
   - `tests/reporters/markdown-reporter.test.js` (9 tests)
+
+---
+
+## 🚀 GitHub Actions CI/CD & Developer Workflows
+
+TrustLayer includes production-ready automated workflows and git integrations:
+
+### 1. Continuous Integration Matrix ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))
+Automatically runs on pull requests and pushes to `main`:
+- Tests across Node.js **20.x** and **22.x** runners.
+- Executes full test suite (`npm test`).
+- Enforces regression gates on the hardened reference app (`npm run scan:fixed`).
+- Validates scanner throughput benchmarks (`npm run benchmark`).
+
+### 2. Native GitHub Code Scanning via SARIF ([`.github/workflows/security-scan.yml`](.github/workflows/security-scan.yml))
+Generates OASIS SARIF v2.1.0 output and uploads it via `@github/codeql-action/upload-sarif`:
+- Annotates pull request diffs directly with line-by-line security alerts.
+- Feeds findings into repository **Security ➔ Code scanning alerts** tab.
+
+### 3. Reusable GitHub Action ([`action.yml`](action.yml))
+Drop TrustLayer into any repository with zero configuration:
+```yaml
+- name: Run TrustLayer Security Scan
+  uses: vikalp1817243/TrustLayer@v1
+  with:
+    target: '.'
+    fail-on: 'high'
+    format: 'sarif'
+```
+
+### 4. Automated Git Pre-Commit Hook
+Prevent committing vulnerable code before it ever hits git history:
+```bash
+# Install the hook with a single command
+npm run hooks:install
+```
+The hook automatically intercepts `git commit`, inspects staged JS/TS files, and aborts commits if High or Critical vulnerabilities are introduced.
 
 ---
 
@@ -305,10 +350,21 @@ Current test status: **225 passing tests (100%)** across 18 test files:
 
 ```
 TrustLayer/
+├── .github/                    # CI/CD and security automation
+│   └── workflows/
+│       ├── ci.yml              # Node 20/22 multi-runner test & benchmark gate
+│       └── security-scan.yml   # SARIF generation & GitHub Security tab upload
 ├── docs/                       # Project documentation & team audits
-│   └── audit-report.md         # Comprehensive 5-member codebase audit & Phase 2 roadmap
+│   ├── audit-report.md         # Comprehensive 5-member codebase audit & Phase 2 roadmap
+│   └── benchmark-results.md    # Throughput and latency benchmarking report
+├── scripts/                    # Utilities and automated git hooks
+│   ├── benchmark.js            # Performance benchmark harness
+│   ├── demo-compare.js         # Side-by-side vulnerable vs hardened demo comparator
+│   ├── pre-commit.sh           # Git pre-commit security gate
+│   └── install-hooks.js        # Git pre-commit installer
 ├── src/
 │   ├── cli.js                  # CLI entrypoint (Commander.js, formatting & exit codes)
+│   ├── index.js                # Programmatic JavaScript API entrypoint
 │   ├── types/                  # Core data contracts & JSDoc specifications
 │   │   ├── rule.js             # Rule and AnalysisContext interfaces
 │   │   ├── finding.js          # Finding structure and schema validation
@@ -322,6 +378,8 @@ TrustLayer/
 │   │   ├── payment-amount-tampering.js
 │   │   ├── missing-webhook-verification.js
 │   │   ├── missing-auth-middleware.js
+│   │   ├── idor-access-control.js
+│   │   ├── missing-rate-limiting.js
 │   │   ├── hardcoded-secrets.js
 │   │   ├── weak-crypto.js
 │   │   ├── sql-injection.js
@@ -338,14 +396,17 @@ TrustLayer/
 │   ├── server.js               # Express application with route auto-mounting
 │   ├── db/setup.js             # SQLite initialization with realistic seeds
 │   ├── middleware/auth.js      # Middleware stubs
-│   └── routes/                 # 8 canonical vulnerable endpoints (auth, products, checkout, webhook)
+│   └── routes/                 # 12 canonical vulnerable endpoints (auth, products, checkout, webhook, orders)
 ├── demo-fixed/                 # Hardened reference app demonstrating verified fixes (0 findings)
-├── tests/                      # Automated Vitest test suites (225 tests across 18 suites)
-│   ├── cli.test.js             # CLI argument, exit-code & format validation (26 tests)
-│   ├── engine/                 # Scanner, parser, discovery, registry, finding (40 tests)
-│   ├── utils/                  # AST helpers & patterns unit tests (22 tests)
-│   ├── rules/                  # Payment, auth, secrets, crypto, injection (79 tests)
-│   └── reporters/              # Markdown, JSON/SARIF, AI enhancer, demo-verification (58 tests)
+│   ├── middleware/             # Hardened auth and rate-limiting middleware
+│   └── routes/                 # Hardened, validated, scoped endpoints
+├── tests/                      # Automated Vitest test suites (317 tests across 22 suites)
+│   ├── cli.test.js             # CLI argument, exit-code & format validation (34 tests)
+│   ├── engine/                 # Scanner, parser, discovery, registry, finding, index (82 tests)
+│   ├── utils/                  # AST helpers & patterns unit tests (34 tests)
+│   ├── rules/                  # 9 Security rule test suites (124 tests)
+│   └── reporters/              # Markdown, JSON/SARIF, AI enhancer, demo-verification (53 tests)
+├── action.yml                  # Reusable composite GitHub Action
 ├── AGENTS.md                   # Global directives for AI assistants
 ├── ROLES.md                    # Team member role boundaries & ownership guide
 ├── CONTRIBUTING.md             # Branching protocol and PR guidelines
