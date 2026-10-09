@@ -65,17 +65,17 @@ Harden rules against real-world Express variations, reduce false alarms (such as
 - `src/rules/missing-input-validation.js`
 
 ### 📋 Audit Checkpoints
-- [ ] **Webhook vs Auth Mutual Exclusivity (Critical Real-World Gap):**
+- [x] **Webhook vs Auth Mutual Exclusivity (Critical Real-World Gap):**
   - *Observation:* On `/webhook` routes, both `missing-auth-middleware` and `missing-webhook-verification` currently fire simultaneously.
   - *Refinement:* Webhook endpoints *by design* do not expect user session/JWT authentication. If a route path contains `/webhook`, `missing-auth-middleware` should gracefully defer to `missing-webhook-verification` or lower its severity/confidence to avoid noisy duplicate alerts.
-- [ ] **Entity ID Randomness Context:**
+- [x] **Entity ID Randomness Context:**
   - *Observation:* `Math.random()` in frontend UI components (e.g. `const id = '#HOT-T' + Math.floor(...)`) flagged as High Severity crypto weakness.
   - *Refinement:* Add heuristic context checking: is the identifier used in cryptographic/session/token context vs harmless UI element styling?
-- [ ] **Deep Destructuring & Parameter Aliasing:**
+- [x] **Deep Destructuring & Parameter Aliasing:**
   - Ensure `const { amount: price } = req.body` or `const { body: { amount } } = req` is tracked by payment tampering.
-- [ ] **Modern SQL Sinks & Tagged Templates:**
+- [x] **Modern SQL Sinks & Tagged Templates:**
   - Verify Prisma raw queries (`prisma.$queryRawUnsafe`), Knex raw (`knex.raw`), and Sequelize raw queries are accurately distinguished from parameterized tagged templates (`prisma.$queryRaw` with template tags).
-- [ ] **TypeScript / JSX AST Compatibility:**
+- [x] **TypeScript / JSX AST Compatibility:**
   - Verify Babel parser handles Type Annotations, Interfaces, Generics, and TSX/JSX syntax without syntax error bailout.
 
 ---

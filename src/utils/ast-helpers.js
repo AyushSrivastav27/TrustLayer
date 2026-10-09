@@ -87,6 +87,28 @@ export function getExpressRouteDetails(node) {
 }
 
 /**
+ * Unwraps TypeScript type assertions, non-null assertions, and parentheses.
+ *
+ * @param {object} node - AST node
+ * @returns {object} Unwrapped node
+ */
+export function unwrapNode(node) {
+  let curr = node;
+  while (
+    curr && (
+      t.isTSAsExpression(curr) ||
+      t.isTSTypeAssertion(curr) ||
+      t.isTSNonNullExpression(curr) ||
+      (t.isParenthesizedExpression && t.isParenthesizedExpression(curr)) ||
+      (t.isTypeCastExpression && t.isTypeCastExpression(curr))
+    )
+  ) {
+    curr = curr.expression;
+  }
+  return curr;
+}
+
+/**
  * Checks whether an AST node is an access to an HTTP source (e.g. `req.body`, `req.query`, `req.params`).
  *
  * @param {object} node - AST node
@@ -94,18 +116,21 @@ export function getExpressRouteDetails(node) {
  * @returns {boolean}
  */
 export function isReqAccess(node, sources = HTTP_SOURCES) {
-  if (!t.isMemberExpression(node)) return false;
+  const unwrapped = unwrapNode(node);
+  if (!unwrapped || !t.isMemberExpression(unwrapped)) return false;
+
+  const obj = unwrapNode(unwrapped.object);
 
   // Direct: req.body
-  if (t.isIdentifier(node.object) && node.object.name === 'req') {
-    if (t.isIdentifier(node.property) && sources.includes(node.property.name)) {
+  if (t.isIdentifier(obj) && obj.name === 'req') {
+    if (t.isIdentifier(unwrapped.property) && sources.includes(unwrapped.property.name)) {
       return true;
     }
   }
 
   // Nested: req.body.amount
-  if (t.isMemberExpression(node.object)) {
-    return isReqAccess(node.object, sources);
+  if (t.isMemberExpression(obj)) {
+    return isReqAccess(obj, sources);
   }
 
   return false;
@@ -119,11 +144,12 @@ export function isReqAccess(node, sources = HTTP_SOURCES) {
  * @returns {boolean}
  */
 export function isReqPropertyAccess(node, propertyNames) {
-  if (!t.isMemberExpression(node)) return false;
-  if (!isReqAccess(node.object)) return false;
+  const unwrapped = unwrapNode(node);
+  if (!unwrapped || !t.isMemberExpression(unwrapped)) return false;
+  if (!isReqAccess(unwrapped.object)) return false;
 
-  if (t.isIdentifier(node.property)) {
-    return propertyNames.includes(node.property.name);
+  if (t.isIdentifier(unwrapped.property)) {
+    return propertyNames.includes(unwrapped.property.name);
   }
 
   return false;
