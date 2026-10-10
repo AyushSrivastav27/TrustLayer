@@ -13,6 +13,8 @@ coverage/
 demo/db/*.db*
 demo/db/*.sqlite*
 Artifacts/CLAUDE.md
+HeavenlyCult_Cybersecurity_ShippedFastLeftOpen.pdf
+
 # Logs
 logs
 *.log

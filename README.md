@@ -24,20 +24,21 @@
 
 - [📌 Executive Summary](#-executive-summary)
 - [✨ Key Capabilities & Differentiators](#-key-capabilities--differentiators)
-- [🏗️ Core Architecture & Pipeline](#️-core-architecture--pipeline)
-- [🚦 Project Status & Implementation Matrix](#-project-status--implementation-matrix)
 - [💻 Quick Start & CLI Usage](#-quick-start--cli-usage)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
   - [Running the Scanner](#running-the-scanner)
   - [CLI Flags & Options Reference](#cli-flags--options-reference)
   - [AI Mode Configuration (Online vs. Offline)](#ai-mode-configuration-online-vs-offline)
-- [🛡️ Security Rules Portfolio](#️-security-rules-portfolio)
 - [🎬 Hackathon Demonstration & Comparison](#-hackathon-demonstration--comparison)
-- [🧪 Testing & Test Suite Breakdown](#-testing)
-- [📚 Documentation & Audits](#-documentation--audits)
-- [📂 Repository Layout](#-repository-layout)
+- [🛡️ Security Rules Portfolio](#️-security-rules-portfolio)
+- [🏗️ Core Architecture & Pipeline](#️-core-architecture--pipeline)
+- [🚦 Project Status & Implementation Matrix](#-project-status--implementation-matrix)
+- [🧪 Testing](#-testing)
+- [🚀 GitHub Actions CI/CD & Developer Workflows](#-github-actions-cicd--developer-workflows)
 - [📐 Rule Specification Contract](#-rule-specification-contract)
+- [📂 Repository Layout](#-repository-layout)
+- [📚 Documentation & Audits](#-documentation--audits)
 - [👥 Team & Ownership Boundaries](#-team--ownership-boundaries)
 - [🔮 Phase 2 Roadmap & Future Horizons](#-phase-2-roadmap--future-horizons)
 - [📄 License](#-license)
@@ -72,52 +73,6 @@ Existing static analysis tools (Semgrep, ESLint-security, Gitleaks, SonarQube) s
   Generates clean GitHub Flavored Markdown (GFM) executive summaries, structured JSON, and OASIS SARIF v2.1.0 output for direct GitHub Code Scanning integration.
 - 🪶 **Pure JavaScript Tooling**  
   Zero native C-bindings or tree-sitter compilation hazards; runs out-of-the-box on Node 20+ anywhere.
-
----
-
-## 🏗️ Core Architecture & Pipeline
-
-```mermaid
-graph TD
-    A["CLI Entrypoint (trustlayer scan)"] --> B["File Discovery (Glob: .js, .mjs, .cjs)"]
-    B --> C["Babel AST Parser (@babel/parser)"]
-    D["Rule Registry (Dynamic ESM Loader)"] --> E["Scanner Engine (Parallel Intra-Handler Traversal)"]
-    C --> E
-    E --> F["Structured Findings (Rule, File, Line, Code)"]
-    F --> G["Optional AI Enhancer & Attack Chain Correlator"]
-    G --> H["Report Generators"]
-    F --> H
-    H --> I["Console Summary (ANSI Formatted Table)"]
-    H --> J["Markdown Report (SECURITY-REPORT.md)"]
-    H --> K["SARIF / JSON Export (audit.sarif / audit.json)"]
-```
-
----
-
-## 🚦 Project Status & Implementation Matrix
-
-All 5 core layers and specialized rule categories are **fully implemented, integrated, and verified** with **225/225 tests passing (100% pass rate)**:
-
-| Subsystem / Layer | Component / Files | Status | Test Coverage |
-|---|---|:---:|:---:|
-| **Data Contracts** | `src/types/rule.js`, `src/types/finding.js`, `src/types/report.js` | 🟢 Completed | 7 / 7 Tests Passing (`finding.test.js`) |
-| **AST & Pattern Helpers** | `src/utils/ast-helpers.js`, `src/utils/patterns.js` | 🟢 Completed | 34 / 34 Tests Passing |
-| **Babel AST Parser** | `src/engine/ast-parser.js` | 🟢 Completed | 14 / 14 Tests Passing |
-| **File Discovery** | `src/engine/file-discovery.js` | 🟢 Completed | 17 / 17 Tests Passing |
-| **Rule Auto-Registry** | `src/engine/rule-registry.js` | 🟢 Completed | 7 / 7 Tests Passing |
-| **Scanner Orchestrator** | `src/engine/scanner.js` | 🟢 Completed | 18 / 18 Tests Passing |
-| **CLI & Programmatic API** | `src/cli.js`, `src/index.js` (Commander.js, exit codes) | 🟢 Completed | 43 / 43 Tests Passing |
-| **Payment Security Rules** | `payment-amount-tampering.js`, `missing-webhook-verification.js` | 🟢 Completed | 31 / 31 Tests Passing |
-| **Authentication & IDOR Rules** | `missing-auth-middleware.js`, `idor-access-control.js`, `missing-rate-limiting.js` | 🟢 Completed | 35 / 35 Tests Passing |
-| **Secrets & Crypto Rules** | `src/rules/hardcoded-secrets.js`, `src/rules/weak-crypto.js` | 🟢 Completed | 35 / 35 Tests Passing |
-| **Injection Rules** | `src/rules/sql-injection.js`, `missing-input-validation.js` | 🟢 Completed | 23 / 23 Tests Passing |
-| **Reporters & SARIF** | `src/reporters/markdown-reporter.js`, `src/reporters/json-reporter.js` | 🟢 Completed | 21 / 21 Tests Passing |
-| **AI & Attack Chains** | `src/ai/enhancer.js` (Offline Heuristics + Gemini / Claude / OpenAI) | 🟢 Completed | 13 / 13 Tests Passing |
-| **Vulnerable Demo App** | `demo/server.js`, `demo/routes/*`, `demo/db/*` | 🟢 Completed | 12 Canonical Flaws Detected |
-| **Hardened Reference App** | `demo-fixed/*` (Verified Remediation Counterpart) | 🟢 Completed | 100% Clean Scan (0 Flaws) |
-| **CI/CD & GitHub Actions** | `.github/workflows/ci.yml`, `security-scan.yml`, `action.yml` | 🟢 Completed | Node 20/22 Matrix + SARIF Upload |
-| **Git Pre-commit Hook** | `scripts/pre-commit.sh`, `scripts/install-hooks.js` | 🟢 Completed | Automatic commit staging guard |
-| **E2E Demo Verification** | `tests/reporters/demo-verification.test.js` | 🟢 Completed | 19 / 19 Tests Passing |
 
 ---
 
@@ -219,24 +174,6 @@ TrustLayer operates with a **Deterministic Detection Core**:
 
 ---
 
-## 🛡️ Security Rules Portfolio
-
-TrustLayer ships with 9 deterministic AST rules engineered specifically for Node.js/Express e-commerce architectures:
-
-| Rule ID | Category | Severity | Detection Trigger & Mechanism |
-|---|---|:---:|---|
-| [`payment/payment-amount-tampering`](file:///home/jay/Documents/TrustLayer/src/rules/payment-amount-tampering.js) | `payment` | **Critical** | Traces client input (`req.body.amount`, `req.body.price`) flowing directly into payment SDK calls (`stripe.charges.create`, `stripe.paymentIntents.create`, `razorpay.orders.create`) without server-side catalog price lookup. |
-| [`payment/missing-webhook-verification`](file:///home/jay/Documents/TrustLayer/src/rules/missing-webhook-verification.js) | `payment` | **High** | Flags payment webhook handlers (`/webhook`, `/stripe-webhook`) that lack cryptographic HMAC signature verification (`stripe.webhooks.constructEvent` or `crypto.timingSafeEqual`). |
-| [`auth/missing-auth-middleware`](file:///home/jay/Documents/TrustLayer/src/rules/missing-auth-middleware.js) | `auth` | **High** | Inspects Express routing chains on sensitive routes (`/api/orders`, `/api/admin`, `/api/users`) to detect endpoints omitting authentication middleware guards. |
-| [`auth/idor-access-control`](file:///home/jay/Documents/TrustLayer/src/rules/idor-access-control.js) | `auth` | **High** | Flags database operations querying resources by ID parameter (`req.params.id`) without verifying ownership or scoping queries to the authenticated user ID (`user_id = req.user.id`). |
-| [`auth/missing-rate-limiting`](file:///home/jay/Documents/TrustLayer/src/rules/missing-rate-limiting.js) | `auth` | **Medium** | Identifies brute-force and financial abuse-prone routes (`/login`, `/register`, `/checkout`, `/forgot-password`) omitting rate-limiting middleware (`express-rate-limit`, `rateLimiter`). |
-| [`secrets/hardcoded-secrets`](file:///home/jay/Documents/TrustLayer/src/rules/hardcoded-secrets.js) | `secrets` | **Critical** | Scans variable declarations and object configs for live API keys (Stripe `sk_live_`, Razorpay `rzp_live_`, AWS `AKIA...`, JWT secrets) using exact prefix matching and Shannon entropy analysis. |
-| [`secrets/weak-crypto`](file:///home/jay/Documents/TrustLayer/src/rules/weak-crypto.js) | `secrets` | **High** | Flags obsolete cryptographic hashing (`md5`, `sha1`), weak legacy ciphers (`des`, `rc4`), and `Math.random()` used in security-sensitive token/session generation contexts. |
-| [`injection/sql-injection`](file:///home/jay/Documents/TrustLayer/src/rules/sql-injection.js) | `injection` | **Critical** | Detects unparameterized SQL queries built via template literals or string concatenation flowing directly into database sinks (`db.query`, `db.run`, `pool.query`, `knex.raw`). |
-| [`injection/missing-input-validation`](file:///home/jay/Documents/TrustLayer/src/rules/missing-input-validation.js) | `injection` | **High** | Flags route handlers accepting client parameters without presence checks, schema validation (`express-validator`, `zod`, `joi`), or type guards. |
-
----
-
 ## 🎬 Hackathon Demonstration & Comparison
 
 To demonstrate TrustLayer's speed, precision, and zero-false-positive design during presentations, run the automated comparison script:
@@ -255,6 +192,70 @@ npm run demo:compare
    - Re-scans the remediated codebase.
    - Produces **0 findings** and **100% clean scan badge**.
    - Allows CI/CD deployment (**exit code 0**).
+
+---
+
+## 🛡️ Security Rules Portfolio
+
+TrustLayer ships with 9 deterministic AST rules engineered specifically for Node.js/Express e-commerce architectures:
+
+| Rule ID | Category | Severity | Detection Trigger & Mechanism |
+|---|---|:---:|---|
+| [`payment/payment-amount-tampering`](file:///home/jay/Documents/TrustLayer/src/rules/payment-amount-tampering.js) | `payment` | **Critical** | Traces client input (`req.body.amount`, `req.body.price`) flowing directly into payment SDK calls (`stripe.charges.create`, `stripe.paymentIntents.create`, `razorpay.orders.create`) without server-side catalog price lookup. |
+| [`payment/missing-webhook-verification`](file:///home/jay/Documents/TrustLayer/src/rules/missing-webhook-verification.js) | `payment` | **High** | Flags payment webhook handlers (`/webhook`, `/stripe-webhook`) that lack cryptographic HMAC signature verification (`stripe.webhooks.constructEvent` or `crypto.timingSafeEqual`). |
+| [`auth/missing-auth-middleware`](file:///home/jay/Documents/TrustLayer/src/rules/missing-auth-middleware.js) | `auth` | **High** | Inspects Express routing chains on sensitive routes (`/api/orders`, `/api/admin`, `/api/users`) to detect endpoints omitting authentication middleware guards. |
+| [`auth/idor-access-control`](file:///home/jay/Documents/TrustLayer/src/rules/idor-access-control.js) | `auth` | **High** | Flags database operations querying resources by ID parameter (`req.params.id`) without verifying ownership or scoping queries to the authenticated user ID (`user_id = req.user.id`). |
+| [`auth/missing-rate-limiting`](file:///home/jay/Documents/TrustLayer/src/rules/missing-rate-limiting.js) | `auth` | **Medium** | Identifies brute-force and financial abuse-prone routes (`/login`, `/register`, `/checkout`, `/forgot-password`) omitting rate-limiting middleware (`express-rate-limit`, `rateLimiter`). |
+| [`secrets/hardcoded-secrets`](file:///home/jay/Documents/TrustLayer/src/rules/hardcoded-secrets.js) | `secrets` | **Critical** | Scans variable declarations and object configs for live API keys (Stripe `sk_live_`, Razorpay `rzp_live_`, AWS `AKIA...`, JWT secrets) using exact prefix matching and Shannon entropy analysis. |
+| [`secrets/weak-crypto`](file:///home/jay/Documents/TrustLayer/src/rules/weak-crypto.js) | `secrets` | **High** | Flags obsolete cryptographic hashing (`md5`, `sha1`), weak legacy ciphers (`des`, `rc4`), and `Math.random()` used in security-sensitive token/session generation contexts. |
+| [`injection/sql-injection`](file:///home/jay/Documents/TrustLayer/src/rules/sql-injection.js) | `injection` | **Critical** | Detects unparameterized SQL queries built via template literals or string concatenation flowing directly into database sinks (`db.query`, `db.run`, `pool.query`, `knex.raw`). |
+| [`injection/missing-input-validation`](file:///home/jay/Documents/TrustLayer/src/rules/missing-input-validation.js) | `injection` | **High** | Flags route handlers accepting client parameters without presence checks, schema validation (`express-validator`, `zod`, `joi`), or type guards. |
+
+---
+
+## 🏗️ Core Architecture & Pipeline
+
+```mermaid
+graph TD
+    A["CLI Entrypoint (trustlayer scan)"] --> B["File Discovery (Glob: .js, .mjs, .cjs)"]
+    B --> C["Babel AST Parser (@babel/parser)"]
+    D["Rule Registry (Dynamic ESM Loader)"] --> E["Scanner Engine (Parallel Intra-Handler Traversal)"]
+    C --> E
+    E --> F["Structured Findings (Rule, File, Line, Code)"]
+    F --> G["Optional AI Enhancer & Attack Chain Correlator"]
+    G --> H["Report Generators"]
+    F --> H
+    H --> I["Console Summary (ANSI Formatted Table)"]
+    H --> J["Markdown Report (SECURITY-REPORT.md)"]
+    H --> K["SARIF / JSON Export (audit.sarif / audit.json)"]
+```
+
+---
+
+## 🚦 Project Status & Implementation Matrix
+
+All 5 core layers and specialized rule categories are **fully implemented, integrated, and verified** with **225/225 tests passing (100% pass rate)**:
+
+| Subsystem / Layer | Component / Files | Status | Test Coverage |
+|---|---|:---:|:---:|
+| **Data Contracts** | `src/types/rule.js`, `src/types/finding.js`, `src/types/report.js` | 🟢 Completed | 7 / 7 Tests Passing (`finding.test.js`) |
+| **AST & Pattern Helpers** | `src/utils/ast-helpers.js`, `src/utils/patterns.js` | 🟢 Completed | 34 / 34 Tests Passing |
+| **Babel AST Parser** | `src/engine/ast-parser.js` | 🟢 Completed | 14 / 14 Tests Passing |
+| **File Discovery** | `src/engine/file-discovery.js` | 🟢 Completed | 17 / 17 Tests Passing |
+| **Rule Auto-Registry** | `src/engine/rule-registry.js` | 🟢 Completed | 7 / 7 Tests Passing |
+| **Scanner Orchestrator** | `src/engine/scanner.js` | 🟢 Completed | 18 / 18 Tests Passing |
+| **CLI & Programmatic API** | `src/cli.js`, `src/index.js` (Commander.js, exit codes) | 🟢 Completed | 43 / 43 Tests Passing |
+| **Payment Security Rules** | `payment-amount-tampering.js`, `missing-webhook-verification.js` | 🟢 Completed | 31 / 31 Tests Passing |
+| **Authentication & IDOR Rules** | `missing-auth-middleware.js`, `idor-access-control.js`, `missing-rate-limiting.js` | 🟢 Completed | 35 / 35 Tests Passing |
+| **Secrets & Crypto Rules** | `src/rules/hardcoded-secrets.js`, `src/rules/weak-crypto.js` | 🟢 Completed | 35 / 35 Tests Passing |
+| **Injection Rules** | `src/rules/sql-injection.js`, `missing-input-validation.js` | 🟢 Completed | 23 / 23 Tests Passing |
+| **Reporters & SARIF** | `src/reporters/markdown-reporter.js`, `src/reporters/json-reporter.js` | 🟢 Completed | 21 / 21 Tests Passing |
+| **AI & Attack Chains** | `src/ai/enhancer.js` (Offline Heuristics + Gemini / Claude / OpenAI) | 🟢 Completed | 13 / 13 Tests Passing |
+| **Vulnerable Demo App** | `demo/server.js`, `demo/routes/*`, `demo/db/*` | 🟢 Completed | 12 Canonical Flaws Detected |
+| **Hardened Reference App** | `demo-fixed/*` (Verified Remediation Counterpart) | 🟢 Completed | 100% Clean Scan (0 Flaws) |
+| **CI/CD & GitHub Actions** | `.github/workflows/ci.yml`, `security-scan.yml`, `action.yml` | 🟢 Completed | Node 20/22 Matrix + SARIF Upload |
+| **Git Pre-commit Hook** | `scripts/pre-commit.sh`, `scripts/install-hooks.js` | 🟢 Completed | Automatic commit staging guard |
+| **E2E Demo Verification** | `tests/reporters/demo-verification.test.js` | 🟢 Completed | 19 / 19 Tests Passing |
 
 ---
 
@@ -337,12 +338,40 @@ The hook automatically intercepts `git commit`, inspects staged JS/TS files, and
 
 ---
 
-## 📚 Documentation & Audits
+## 📐 Rule Specification Contract
 
-- 📑 [**Comprehensive Team Audit Report**](docs/audit-report.md) — Detailed technical audit of all 5 members' codebases, test coverage gaps, edge-case analysis, implementation plans, and demo day priorities.
-- 🤖 [**AI Agent Directives (AGENTS.md)**](AGENTS.md) — Mandatory architecture rules, non-overlapping file ownership boundaries, and coding standards for AI assistants.
-- 👥 [**Team Roles & Ownership (ROLES.md)**](ROLES.md) — Developer responsibility matrix, branch workflows, and merge order.
-- 🤝 [**Contributing Guidelines (CONTRIBUTING.md)**](CONTRIBUTING.md) — Contribution protocols, rule interfaces, and pull request checklist.
+Every security rule in `src/rules/*.js` must implement and export the `Rule` interface:
+
+```javascript
+/**
+ * @typedef {import('../types/rule.js').Rule} Rule
+ */
+
+/** @type {Rule} */
+const exampleRule = {
+  id: 'category/kebab-case-name',
+  name: 'Human Readable Title',
+  severity: 'critical',           // 'critical' | 'high' | 'medium' | 'low'
+  category: 'payment',            // 'payment' | 'auth' | 'injection' | 'secrets'
+  description: 'Concise summary of the vulnerability pattern.',
+  defaultExplanation: 'In-depth explanation used when AI is offline.',
+  defaultRemediation: 'Secure code snippet demonstrating the fix.',
+  
+  analyze(context) {
+    const findings = [];
+    const { filePath, fileContent, ast, lines } = context;
+
+    if (!ast) return findings;
+
+    // Use @babel/traverse on the pre-parsed AST
+    // Never parse the file manually inside analyze()
+
+    return findings;
+  }
+};
+
+export default exampleRule;
+```
 
 ---
 
@@ -415,40 +444,12 @@ TrustLayer/
 
 ---
 
-## 📐 Rule Specification Contract
+## 📚 Documentation & Audits
 
-Every security rule in `src/rules/*.js` must implement and export the `Rule` interface:
-
-```javascript
-/**
- * @typedef {import('../types/rule.js').Rule} Rule
- */
-
-/** @type {Rule} */
-const exampleRule = {
-  id: 'category/kebab-case-name',
-  name: 'Human Readable Title',
-  severity: 'critical',           // 'critical' | 'high' | 'medium' | 'low'
-  category: 'payment',            // 'payment' | 'auth' | 'injection' | 'secrets'
-  description: 'Concise summary of the vulnerability pattern.',
-  defaultExplanation: 'In-depth explanation used when AI is offline.',
-  defaultRemediation: 'Secure code snippet demonstrating the fix.',
-  
-  analyze(context) {
-    const findings = [];
-    const { filePath, fileContent, ast, lines } = context;
-
-    if (!ast) return findings;
-
-    // Use @babel/traverse on the pre-parsed AST
-    // Never parse the file manually inside analyze()
-
-    return findings;
-  }
-};
-
-export default exampleRule;
-```
+- 📑 [**Comprehensive Team Audit Report**](docs/audit-report.md) — Detailed technical audit of all 5 members' codebases, test coverage gaps, edge-case analysis, implementation plans, and demo day priorities.
+- 🤖 [**AI Agent Directives (AGENTS.md)**](AGENTS.md) — Mandatory architecture rules, non-overlapping file ownership boundaries, and coding standards for AI assistants.
+- 👥 [**Team Roles & Ownership (ROLES.md)**](ROLES.md) — Developer responsibility matrix, branch workflows, and merge order.
+- 🤝 [**Contributing Guidelines (CONTRIBUTING.md)**](CONTRIBUTING.md) — Contribution protocols, rule interfaces, and pull request checklist.
 
 ---
 
