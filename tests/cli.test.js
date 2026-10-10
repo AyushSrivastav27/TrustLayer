@@ -92,6 +92,28 @@ describe('CLI: resolveReportTarget unit tests', () => {
     expect(result.format).toBe('json');
     expect(result.filePath).toBe(path.resolve(process.cwd(), 'custom/path.json'));
   });
+
+  it('returns default SECURITY-REPORT.html when outputOption is null and format is html', () => {
+    const result = resolveReportTarget(null, 'html');
+    expect(result.format).toBe('html');
+    expect(result.filePath).toBe(path.resolve(process.cwd(), 'SECURITY-REPORT.html'));
+  });
+
+  it('appends .html when path has no extension and format is html', () => {
+    const result = resolveReportTarget('audit', 'html');
+    expect(result.format).toBe('html');
+    expect(result.filePath).toBe(path.resolve(process.cwd(), 'audit.html'));
+  });
+
+  it('overrides format to html if outputOption filename ends with .html or .htm', () => {
+    const result = resolveReportTarget('custom-output.html', 'markdown');
+    expect(result.format).toBe('html');
+    expect(result.filePath).toBe(path.resolve(process.cwd(), 'custom-output.html'));
+
+    const htmResult = resolveReportTarget('custom-output.htm', 'json');
+    expect(htmResult.format).toBe('html');
+    expect(htmResult.filePath).toBe(path.resolve(process.cwd(), 'custom-output.htm'));
+  });
 });
 
 describe('CLI: normalizeCliArgs unit tests', () => {
@@ -241,6 +263,36 @@ describe('CLI: Subprocess execution and exit codes', () => {
     const content = JSON.parse(await fs.readFile(reportPath, 'utf-8'));
     expect(content).toHaveProperty('summary');
     expect(content.summary.totalFindings).toBe(0);
+  }, 15000);
+
+  it('saves both default markdown and interactive html reports to disk on default scan', async () => {
+    const reportMdPath = path.join(tempDir, 'default-report.md');
+    const reportHtmlPath = path.join(tempDir, 'default-report.html');
+    const res = await runCli(['scan', 'demo-fixed', '-o', reportMdPath, '--no-banner']);
+    expect(res.code).toBe(0);
+
+    const mdExists = await fs.stat(reportMdPath).then(() => true).catch(() => false);
+    expect(mdExists).toBe(true);
+
+    const htmlExists = await fs.stat(reportHtmlPath).then(() => true).catch(() => false);
+    expect(htmlExists).toBe(true);
+
+    const htmlContent = await fs.readFile(reportHtmlPath, 'utf-8');
+    expect(htmlContent).toContain('TrustLayer Security Audit Report');
+    expect(htmlContent).toContain('100% Clean Scan');
+  }, 15000);
+
+  it('exports standalone HTML report when -f html is specified', async () => {
+    const htmlPath = path.join(tempDir, 'standalone.html');
+    const res = await runCli(['scan', 'demo-fixed', '-o', htmlPath, '-f', 'html', '--no-banner']);
+    expect(res.code).toBe(0);
+
+    const exists = await fs.stat(htmlPath).then(() => true).catch(() => false);
+    expect(exists).toBe(true);
+
+    const content = await fs.readFile(htmlPath, 'utf-8');
+    expect(content).toContain('<!DOCTYPE html>');
+    expect(content).toContain('TrustLayer Security Audit Report');
   }, 15000);
 
   it('exits with code 0 when --fail-on none is used on vulnerable code', async () => {
