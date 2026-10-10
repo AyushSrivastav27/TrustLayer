@@ -167,6 +167,7 @@ vite.config.ts.timestamp-*
 
 # TrustLayer generated reports
 SECURITY-REPORT.md
+SECURITY-REPORT.html
 security-report.json
 *.sarif
 

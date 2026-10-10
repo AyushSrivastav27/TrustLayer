@@ -14,6 +14,7 @@ import { loadRules, VALID_SEVERITIES, VALID_CATEGORIES } from './engine/rule-reg
 import { enhanceReport } from './ai/enhancer.js';
 import { generateMarkdownReport } from './reporters/markdown-reporter.js';
 import { generateJsonReport, toSarif } from './reporters/json-reporter.js';
+import { generateHtmlReport } from './reporters/html-reporter.js';
 
 // Pre-load default rules for instant programmatic inspection
 const defaultRules = await loadRules();
@@ -39,6 +40,7 @@ export {
 
   // Report & SARIF Exporters
   generateMarkdownReport,
+  generateHtmlReport,
   generateJsonReport,
   toSarif
 };
@@ -55,6 +57,7 @@ export default {
   VALID_CATEGORIES,
   enhanceReport,
   generateMarkdownReport,
+  generateHtmlReport,
   generateJsonReport,
   toSarif
 };

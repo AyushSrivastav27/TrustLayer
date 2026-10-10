@@ -97,7 +97,7 @@ npm install
 TrustLayer features a full-featured CLI powered by Commander.js:
 
 ```bash
-# 1. Scan current directory (generates terminal table & SECURITY-REPORT.md)
+# 1. Scan current directory (generates terminal table, SECURITY-REPORT.md & interactive SECURITY-REPORT.html)
 node src/cli.js scan
 
 # 2. Scan a specific project directory
@@ -115,16 +115,19 @@ node src/cli.js scan ./demo -f sarif -o audit.sarif
 # 6. Export structured JSON for custom CI/CD pipelines
 node src/cli.js scan ./demo -f json -o audit.json
 
-# 7. Compare vulnerable demo vs hardened reference app side-by-side
+# 7. Export standalone interactive HTML report
+node src/cli.js scan ./demo -f html -o audit.html
+
+# 8. Compare vulnerable demo vs hardened reference app side-by-side
 npm run demo:compare
 
-# 8. Scan hardened reference application (demonstrates 100% clean scan)
+# 9. Scan hardened reference application (demonstrates 100% clean scan)
 node src/cli.js scan ./demo-fixed
 
-# 9. Terminal summary only (suppress file output)
+# 10. Terminal summary only (suppress file output)
 node src/cli.js scan ./demo --no-report
 
-# 10. Filter findings by minimum severity or specific category
+# 11. Filter findings by minimum severity or specific category
 node src/cli.js scan ./demo -s critical
 node src/cli.js scan ./demo -c payment
 ```
@@ -134,8 +137,8 @@ node src/cli.js scan ./demo -c payment
 | Flag / Option | Description | Default |
 |---|---|---|
 | `[target]` | Target directory or file to scan | `.` (current directory) |
-| `-o, --output <file>` | Output report path | `SECURITY-REPORT.md` (or `.json` / `.sarif`) |
-| `-f, --format <format>` | Output format: `markdown` (`md`), `json`, or `sarif` | `markdown` |
+| `-o, --output <file>` | Output report path | `SECURITY-REPORT.md` + `.html` (or `.json` / `.sarif`) |
+| `-f, --format <format>` | Output format: `markdown` (`md`), `html`, `json`, or `sarif` | `markdown` (generates `.md` & `.html`) |
 | `--ai` | Enable additive AI enhancement layer (works offline or online) | `false` |
 | `--api-key <key>` | Gemini / LLM API key (can also be set via `GEMINI_API_KEY` in `.env`) | None |
 | `-v, --verbose` | Show verbose exploit walk-throughs & remediation diffs in console | `false` |

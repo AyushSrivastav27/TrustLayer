@@ -12,6 +12,7 @@ import dotenv from 'dotenv';
 import { scan, SCANNER_VERSION } from './engine/scanner.js';
 import { generateMarkdownReport } from './reporters/markdown-reporter.js';
 import { generateJsonReport, toSarif } from './reporters/json-reporter.js';
+import { generateHtmlReport } from './reporters/html-reporter.js';
 
 // Auto-load .env from current directory at startup
 dotenv.config();
@@ -34,7 +35,7 @@ const SEVERITY_ICONS = {
   low: '🔵'
 };
 
-const SUPPORTED_FORMATS = ['markdown', 'md', 'json', 'sarif'];
+const SUPPORTED_FORMATS = ['markdown', 'md', 'html', 'htm', 'json', 'sarif'];
 
 function printBanner() {
   console.log(chalk.cyan.bold(ANSI_SHADOW_BANNER));
@@ -57,6 +58,7 @@ export function resolveReportTarget(outputOption, formatOption) {
   let defaultFileName = 'SECURITY-REPORT.md';
   if (format === 'json') defaultFileName = 'security-report.json';
   if (format === 'sarif') defaultFileName = 'security-report.sarif';
+  if (format === 'html') defaultFileName = 'SECURITY-REPORT.html';
 
   if (!outputOption || typeof outputOption !== 'string') {
     return {
@@ -72,11 +74,14 @@ export function resolveReportTarget(outputOption, formatOption) {
     format = 'json';
   } else if (lower.endsWith('.sarif')) {
     format = 'sarif';
+  } else if (lower.endsWith('.html') || lower.endsWith('.htm')) {
+    format = 'html';
   } else if (lower.endsWith('.md') || lower.endsWith('.markdown')) {
     format = 'markdown';
   } else {
     if (format === 'json') rawPath = `${rawPath}.json`;
     else if (format === 'sarif') rawPath = `${rawPath}.sarif`;
+    else if (format === 'html') rawPath = `${rawPath}.html`;
     else rawPath = `${rawPath}.md`;
   }
 
@@ -101,6 +106,7 @@ Examples:
   $ trustlayer scan --fail-on critical       Exit code 1 triggered only on critical issues
   $ trustlayer scan ./demo -o audit -f json  Export audit results to JSON (audit.json)
   $ trustlayer scan ./demo -o audit -f sarif Export audit results to SARIF for GitHub Code Scanning
+  $ trustlayer scan ./demo -f html           Export audit results to standalone HTML (SECURITY-REPORT.html)
   $ trustlayer scan ./demo -o report         Save report as report.md
   $ trustlayer scan --no-report              Print terminal results without saving a file
   $ trustlayer scan --ignore "**/dist/**"    Scan with custom glob ignore patterns
@@ -122,8 +128,8 @@ program
   .command('scan', { isDefault: true })
   .description('Scan target directory or file for security vulnerabilities (default: current directory)')
   .argument('[target]', 'Target directory or file path to scan', '.')
-  .option('-o, --output [file]', 'Output report path (auto-appends .md, .json, or .sarif, defaults to SECURITY-REPORT.md)')
-  .option('-f, --format <format>', 'Report format: markdown, json, or sarif', 'markdown')
+  .option('-o, --output [file]', 'Output report path (auto-appends .md, .html, .json, or .sarif, defaults to SECURITY-REPORT.md + SECURITY-REPORT.html)')
+  .option('-f, --format <format>', 'Report format: markdown, html, json, or sarif', 'markdown')
   .option('-r, --rules-dir <path>', 'Custom directory to load security rules from')
   .option('-s, --severity <levels>', 'Filter findings by severity (comma-separated: critical, high, medium, low)')
   .option('-c, --category <categories>', 'Filter findings by category (comma-separated: secrets, injection, payment, auth)')
@@ -196,7 +202,7 @@ program
 
     const normalizedFormat = (options.format || 'markdown').trim().toLowerCase();
     if (!SUPPORTED_FORMATS.includes(normalizedFormat)) {
-      console.error(chalk.red(`\n ❌ Error: Unsupported format "${options.format}". Allowed values: markdown, json, sarif.\n`));
+      console.error(chalk.red(`\n ❌ Error: Unsupported format "${options.format}". Allowed values: markdown, html, json, sarif.\n`));
       process.exit(2);
     }
 
@@ -376,17 +382,36 @@ program
         let reportContent = '';
         if (format === 'json') {
           reportContent = generateJsonReport(report);
+          await fs.mkdir(path.dirname(filePath), { recursive: true });
+          await fs.writeFile(filePath, reportContent, 'utf-8');
+          const displayPath = path.relative(process.cwd(), filePath) || filePath;
+          console.log(chalk.cyan(` 📄 Full report saved: ${chalk.bold.underline(displayPath)}\n`));
         } else if (format === 'sarif') {
           reportContent = JSON.stringify(toSarif(report), null, 2);
+          await fs.mkdir(path.dirname(filePath), { recursive: true });
+          await fs.writeFile(filePath, reportContent, 'utf-8');
+          const displayPath = path.relative(process.cwd(), filePath) || filePath;
+          console.log(chalk.cyan(` 📄 Full report saved: ${chalk.bold.underline(displayPath)}\n`));
+        } else if (format === 'html') {
+          reportContent = generateHtmlReport(report);
+          await fs.mkdir(path.dirname(filePath), { recursive: true });
+          await fs.writeFile(filePath, reportContent, 'utf-8');
+          const displayPath = path.relative(process.cwd(), filePath) || filePath;
+          console.log(chalk.cyan(` 🌐 Interactive HTML report saved: ${chalk.bold.underline(displayPath)}\n`));
         } else {
+          // Default: generate BOTH markdown and interactive HTML!
           reportContent = generateMarkdownReport(report);
+          await fs.mkdir(path.dirname(filePath), { recursive: true });
+          await fs.writeFile(filePath, reportContent, 'utf-8');
+          const displayMdPath = path.relative(process.cwd(), filePath) || filePath;
+          console.log(chalk.cyan(` 📄 Full report saved: ${chalk.bold.underline(displayMdPath)}`));
+
+          const htmlFilePath = filePath.replace(/\.(?:md|markdown)$/i, '.html');
+          const htmlContent = generateHtmlReport(report);
+          await fs.writeFile(htmlFilePath, htmlContent, 'utf-8');
+          const displayHtmlPath = path.relative(process.cwd(), htmlFilePath) || htmlFilePath;
+          console.log(chalk.cyan(` 🌐 Interactive HTML report saved: ${chalk.bold.underline(displayHtmlPath)}\n`));
         }
-
-        await fs.mkdir(path.dirname(filePath), { recursive: true });
-        await fs.writeFile(filePath, reportContent, 'utf-8');
-
-        const displayPath = path.relative(process.cwd(), filePath) || filePath;
-        console.log(chalk.cyan(` 📄 Full report saved: ${chalk.bold.underline(displayPath)}\n`));
       }
 
       let hasBlockers = false;
@@ -442,4 +467,4 @@ if (isDirectRun) {
   program.parse(normalizeCliArgs(process.argv));
 }
 
-export { program, generateMarkdownReport, normalizeCliArgs };
+export { program, generateMarkdownReport, generateHtmlReport, normalizeCliArgs };
